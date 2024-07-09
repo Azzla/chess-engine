@@ -3,27 +3,28 @@ local Board = nil
 
 function Game:enter(previous)
 	Board = require('func.Board')
-
-	self.ui = SUIT.new()
-	self.level = Levels[1]
 	self.scale = 0.25
-	Board:init(self.scale, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") --Default Position
-end
 
-function Game:update(dt)
-	--UI--
-	self.ui.layout:reset(0,0)
+	Board:init(self.scale, Positions[1].FEN) --Default Position
+	--Board:init(self.scale, Positions[2].FEN) --Castling Test
 end
 
 function Game:draw()
-	love.graphics.setColor(love.math.colorFromBytes(124,76,62,255))
+	love.graphics.setColor(Colors.dark_gray)
 	love.graphics.rectangle('fill',0,0,Options.w,Options.h)
+
 	love.graphics.setColor(1,1,1,1)
-	
-	love.graphics.printf(self.level.name, 0, 30, Options.w, "center")
-	Board:draw_background(self.scale)
+	Board:draw_background()
 	Board:draw()
-	self.ui:draw()
+	if Board.checkmate == 1 then
+		love.graphics.setColor(1,1,1,1)
+		love.graphics.setFont(Font_64)
+		love.graphics.printf("Black Wins", 0, 10, Options.w)
+	elseif Board.checkmate == 0 then
+		love.graphics.setColor(1,1,1,1)
+		love.graphics.setFont(Font_64)
+		love.graphics.printf("White Wins", 0, 10, Options.w)
+	end
 end
 
 function Game:mousepressed(x, y, btn)

@@ -24,7 +24,7 @@ end
 
 function Menu:draw()
 	love.graphics.setFont(Font_64)
-	love.graphics.printf("Dead Blunders", 0, 50, Options.w, "center")
+	love.graphics.printf("Chess", 0, 50, Options.w, "center")
 	self.ui:draw()
 end
 
