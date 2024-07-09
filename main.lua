@@ -9,33 +9,34 @@ Options			= require('options')
 States			= Options.getStates()
 ChessFont		= nil
 Font_64,Font_32,Font_16,Font_8 = nil,nil,nil,nil
-Colors			= {black = {0,0,0,1}, gray = {0.5,0.5,0.5,1}, white = {1,1,1,1}}
+Colors			= {
+	black = {0,0,0,1},
+	gray = {0.5,0.5,0.5,1},
+	white = {1,1,1,1},
+	dark_gray = {0.13,0.16,0.15,1}
+}
 Assets			= nil
 SFX				= nil
 Unit_Info		= require('dicts/units')
-Levels			= require('dicts/levels')
+Positions		= require('dicts/positions')
 
 local function require_assets()
 	return {
-		square_light = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/square_light.png'),
-		square_dark = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/square_dark.png'),
-		square_light_v3 = love.graphics.newImage('assets/chess_set/board_squares/square_light_v3.png'),
-		square_dark_v3 = love.graphics.newImage('assets/chess_set/board_squares/square_dark_v3.png'),
 		w = { --white pieces
-			pawn = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/w_pawn_1x_ns.png'),
-			knight = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/w_knight_1x_ns.png'),
-			bishop = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/w_bishop_1x_ns.png'),
-			rook = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/w_rook_1x_ns.png'),
-			king = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/w_king_1x_ns.png'),
-			queen = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/w_queen_1x_ns.png')
+			pawn = love.graphics.newImage('assets/pieces/No Shadow/1x/w_pawn_1x_ns.png'),
+			knight = love.graphics.newImage('assets/pieces/No Shadow/1x/w_knight_1x_ns.png'),
+			bishop = love.graphics.newImage('assets/pieces/No Shadow/1x/w_bishop_1x_ns.png'),
+			rook = love.graphics.newImage('assets/pieces/No Shadow/1x/w_rook_1x_ns.png'),
+			king = love.graphics.newImage('assets/pieces/No Shadow/1x/w_king_1x_ns.png'),
+			queen = love.graphics.newImage('assets/pieces/No Shadow/1x/w_queen_1x_ns.png')
 		},
 		b = { --black pieces
-			pawn = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/b_pawn_1x_ns.png'),
-			knight = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/b_knight_1x_ns.png'),
-			bishop = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/b_bishop_1x_ns.png'),
-			rook = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/b_rook_1x_ns.png'),
-			king = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/b_king_1x_ns.png'),
-			queen = love.graphics.newImage('assets/chess_set/PNGs/No Shadow/1x/b_queen_1x_ns.png')
+			pawn = love.graphics.newImage('assets/pieces/No Shadow/1x/b_pawn_1x_ns.png'),
+			knight = love.graphics.newImage('assets/pieces/No Shadow/1x/b_knight_1x_ns.png'),
+			bishop = love.graphics.newImage('assets/pieces/No Shadow/1x/b_bishop_1x_ns.png'),
+			rook = love.graphics.newImage('assets/pieces/No Shadow/1x/b_rook_1x_ns.png'),
+			king = love.graphics.newImage('assets/pieces/No Shadow/1x/b_king_1x_ns.png'),
+			queen = love.graphics.newImage('assets/pieces/No Shadow/1x/b_queen_1x_ns.png')
 		}
 	}
 end
@@ -48,6 +49,20 @@ local function require_sounds()
 		castle = love.audio.newSource('assets/sfx/castle.mp3', 'static'),
 		check = love.audio.newSource('assets/sfx/move-check.mp3', 'static')
 	}
+end
+
+--debugging tool
+function dump(o)
+if type(o) == 'table' then
+local s = '{ '
+for k,v in pairs(o) do
+if type(k) ~= 'number' then k = '"'..k..'"' end
+s = s .. '['..k..'] = ' .. dump(v) .. ','
+end
+return s .. '} '
+else
+return tostring(o)
+end
 end
 
 function love.load()

@@ -1,4 +1,4 @@
-local Levels = {}
+local Positions = {}
 
 --Notes:--
 --[[
@@ -14,25 +14,22 @@ local Levels = {}
 	Q = Queen
 	K = King
 
-	^Lowercase = Enemy Pieces
+	^Lowercase = Black Pieces
 
 	/ = New Row
-	# = Barricade
 	<number> = Empty Squares before/after a piece
 ]]
 
-Levels[1] =
+Positions[1] =
 {
-	name = "Tutorial",
-	FEN = "4k3/4p3/8/8/8/8/8/7K1",
-	points = 6
+	name = "Default",
+	FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
 }
 
-Levels[2] =
+Positions[2] =
 {
-	name = "Catholic Brigade",
-	FEN = "1pbkkbp1/2pbbp2/3pp3/8/8/8/8/3KK3",
-	points = 12
+	name = "Castling-Test",
+	FEN = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R"
 }
 
-return Levels
+return Positions

@@ -54,9 +54,9 @@ function Unit:draw_hover(x,y)
 	)
 end
 
-function Unit:move(index, tile)
+function Unit:move(index)
 	self.index = index
-	self.tile = tile
+	self.tile = to_xy_tile(index-1)
 	self.x,self.y = self:get_pos()
 	self.selected = false
 	self.first_move = false
@@ -89,7 +89,7 @@ function Unit:get_offsets()
 	if self.piece == 'bishop' then return -550/4,-550/4 end
 	if self.piece == 'rook' then return -280/4,-400/4 end
 	if self.piece == 'king' then return -650/4,-680/4 end
-	if self.piece == 'queen' then return -650/4,-450/4 end
+	if self.piece == 'queen' then return -650/4,-460/4 end
 end
 
 function Unit:get_pos()

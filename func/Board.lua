@@ -52,6 +52,10 @@ local blank_board = {
 function Board:init(scale, _fen)
 	self.scale = scale or 1
 	self.squares = 8
+	self.light_color = {love.math.colorFromBytes(235,236,208,255)}
+	self.dark_color = {love.math.colorFromBytes(115,149,82,255)}
+	self.move_high = {love.math.colorFromBytes(235,97,80,204)}
+	self.last_move_high = {love.math.colorFromBytes(255,255,51,127)}
 
 	-- 1 = white; 0 = black;
 	self.board_background = {
@@ -74,20 +78,24 @@ function Board:init(scale, _fen)
 	-- 0 = none; 1 = pawn; 2 = knight; 3 = bishop; 4 = rook; 5 = king; 6 = queen;
 	self.board_pieces = table_shallow_copy(blank_board)
 
-	self.tile_w				= Assets.square_light:getWidth()
+	self.tile_w				= 450
 	self.screen_offset_x	= (Options.w - (self.tile_w*self.squares*self.scale))/2
-	self.screen_offset_y	= (Options.h - (self.tile_w*self.squares*self.scale))-50
+	self.screen_offset_y	= (Options.h - (self.tile_w*self.squares*self.scale))/2
 	self.units				= {}
 	self.unit_selected		= nil --tracks a selected unit
 	self.color_to_move		= 1 --1 = white; 0 = black;
 
-	--this tracks the last move played;
 	--[1]=_id of the piece that moved
 	--[2]=index of the square moved to
 	--[3]=was it the first move, 1=yes,0=no
-	self.last_move			= {-1,-1,false}
+	--[4]=offset of the move, 16 or -16 of special note for en passant
+	self.last_move			= {-1,-1,false,0}
+
 	self.was_en_passant		= false --becomes the unit to be captured by en passant
+	self.can_castle_l		= false --becomes the rook to move with the king
+	self.can_castle_r		= false --becomes the rook to move with the king
 	self.is_in_check		= -1 -- 1 for white, 0 for black
+	self.checkmate			= -1 -- 1 for white, black wins; 0 for black, white wins
 
 	FENParser.parse(_fen, self)
 	self:populate()
@@ -121,19 +129,40 @@ function Board:draw_background()
 		local tx = (x-1) * self.tile_w * self.scale + (self.screen_offset_x)
 		local ty = (y-1) * self.tile_w * self.scale + (self.screen_offset_y)
 		
-		love.graphics.setColor(1,1,1,1)
-		if square == 1 then
-			love.graphics.draw(Assets.square_light,tx,ty,0,self.scale,self.scale)
-		else
-			love.graphics.draw(Assets.square_dark,tx,ty,0,self.scale,self.scale)
+		if square == 1
+		then love.graphics.setColor(self.light_color)
+		else love.graphics.setColor(self.dark_color)
 		end
+		love.graphics.rectangle('fill',
+			tx,ty,
+			self.tile_w*self.scale,
+			self.tile_w*self.scale
+		)
 		
-		love.graphics.setFont(Font_16)
-		love.graphics.print(tostring(i), tx+2, ty)
+		love.graphics.setColor(0,0,0,1)
+		love.graphics.setFont(Font_8)
+		love.graphics.print(tostring(i), tx+2, ty+2)
 
 		if self.board_highlight[i] == 1 then
-			love.graphics.setColor(.5,.8,1,1)
-			love.graphics.rectangle('fill',tx+12,ty+12,451*.20,451*.20)
+			--moveable square color
+			love.graphics.setColor(0,0,0,.3)
+			love.graphics.rectangle('fill',tx+33,ty+33,45,45)
+		elseif self.board_highlight[i] == 2 then
+			--capturable highlight color
+			love.graphics.setColor(self.move_high)
+			love.graphics.rectangle('fill',
+				tx,ty,
+				self.tile_w*self.scale,
+				self.tile_w*self.scale
+			)
+		elseif self.board_highlight[i] == 3 then
+			--last move highlight color
+			love.graphics.setColor(self.last_move_high)
+			love.graphics.rectangle('fill',
+				tx,ty,
+				self.tile_w*self.scale,
+				self.tile_w*self.scale
+			)	
 		end
 	end
 end
@@ -151,6 +180,30 @@ function Board:select_piece(x,y)
 	end
 end
 
+function Board:test_move(piece, new_index, board)
+	board[piece.index] = 0
+	board[new_index] = piece
+	local move_valid = true
+
+	for i,p in ipairs(board) do
+		if p ~= 0 and p.color ~= piece.color then
+			local move_data = MoveData[p.index]
+			--test enemy piece possible captures of king
+			if p.piece == "pawn" then
+				if self:pawn_check(p, move_data, board) then move_valid = false end
+			elseif p.piece == "knight" then
+				if self:knight_check(p, move_data, board) then move_valid = false end
+			elseif p.info.sliding then
+				if self:sliding_check(p, move_data, board) then move_valid = false end
+			else
+				if self:king_check(p, move_data, board) then move_valid = false end
+			end
+		end
+	end
+
+	return move_valid
+end
+
 function Board:move_piece(x,y)
 	if not self.unit_selected then
 		self.board_highlight = table_shallow_copy(blank_board)
@@ -158,10 +211,14 @@ function Board:move_piece(x,y)
 	end
 
 	local tile = self:get_tile(x,y)
+	local prev_index = self.unit_selected.index
+	local index
+
 	if tile then --did we click a valid tile? 
-		local index = xy_to_index(tile.x,tile.y)
+		index = xy_to_index(tile.x,tile.y)
 
 		if self:check_valid_move(index) then --is the tile a valid move for the selected piece?
+			self.is_in_check = -1
 			local target_unit = self.board_pieces[index]
 			if target_unit ~= 0 then
 				--capture this piece
@@ -177,14 +234,36 @@ function Board:move_piece(x,y)
 			end
 
 			--reflect the move on the board state
-			self.board_pieces[self.unit_selected.index] = 0
+			self.board_pieces[prev_index] = 0
 			self.board_pieces[index] = self.unit_selected
 
 			--store the move as the last move played
-			self.last_move = { self.unit_selected.info._id, index, self.unit_selected.first_move }
+			self.last_move = { self.unit_selected.info._id, index, self.unit_selected.first_move, prev_index-index}
 
 			--move the selected piece to the new square
-			self.unit_selected:move(index,tile)
+			self.unit_selected:move(index)
+			
+			--check if the move was to castle the king left or right
+			if self.can_castle_l and prev_index == index+2 then
+				--move the rook
+				local new_rook_i = self.unit_selected.index+1
+				self.board_pieces[new_rook_i] = self.board_pieces[self.can_castle_l.index]
+				self.board_pieces[self.can_castle_l.index] = 0
+				self.can_castle_l:move(new_rook_i)
+
+				SFX.castle:play()
+				self.can_castle_l = false
+				self.can_castle_r = false
+			elseif self.can_castle_r and prev_index == index-2 then
+				local new_rook_i = self.unit_selected.index-1
+				self.board_pieces[new_rook_i] = self.board_pieces[self.can_castle_r.index]
+				self.board_pieces[self.can_castle_r.index] = 0
+				self.can_castle_r:move(new_rook_i)
+
+				SFX.castle:play()
+				self.can_castle_l = false
+				self.can_castle_r = false
+			end
 
 			--if it's a pawn, check for promotion
 			if self.unit_selected.piece == "pawn" then self:check_promotion(self.unit_selected) end
@@ -196,11 +275,16 @@ function Board:move_piece(x,y)
 			self.color_to_move = 1 - self.color_to_move
 		else
 			self.was_en_passant = false
+			self.can_castle_l	= false
+			self.can_castle_r	= false
 		end
 	end
 	self.unit_selected.selected = false
 	self.unit_selected = nil
+	--reset board highlights and add last-move highlight
 	self.board_highlight = table_shallow_copy(blank_board)
+	self.board_highlight[prev_index] = 3
+	if index then self.board_highlight[index] = 3 end
 end
 
 function Board:get_tile(x,y)
@@ -216,24 +300,73 @@ function Board:get_tile(x,y)
 	end
 end
 
---TODO:
---Castling, Checkmate, King Can't Move Into Check
+function Board:generate_possible_moves(color)
+	local moves_board = table_shallow_copy(blank_board)
+	local piece_board = table_shallow_copy(self.board_pieces)
+	
+	for i,unit in ipairs(piece_board) do
+		if unit == 0 then goto continue end
+		if not unit.color == color then goto continue end
+
+		local move_data = MoveData[i]
+		if unit.piece == "pawn" then
+			self:pawn_moves(unit, move_data, moves_board)
+			self:filter_illegal_moves(unit, moves_board)
+		elseif unit.piece == "knight" then
+			self:knight_moves(unit, move_data, moves_board)
+			self:filter_illegal_moves(unit, moves_board)
+		elseif unit.info.sliding then
+			self:sliding_moves(unit, move_data, moves_board)
+			self:filter_illegal_moves(unit, moves_board)
+		elseif unit.piece == 'king' then
+			self:king_moves(unit, move_data, moves_board)
+			self:filter_illegal_moves(unit, moves_board)
+		end
+		::continue::
+	end
+
+	return moves_board
+end
+
 function Board:generate_moves(unit)
 	if unit.color ~= self.color_to_move then return end --we only consider the side who's turn to move it is.
 	local move_data = MoveData[unit.index]
+	local in_check = unit.color == self.is_in_check
 
 	if unit.piece == "pawn" then
 		self:pawn_moves(unit, move_data)
+		if in_check then self:filter_illegal_moves(unit) end
 	elseif unit.piece == "knight" then
 		self:knight_moves(unit, move_data)
+		if in_check then self:filter_illegal_moves(unit) end
 	elseif unit.info.sliding then
 		self:sliding_moves(unit, move_data)
+		if in_check then self:filter_illegal_moves(unit) end
 	else
 		self:king_moves(unit, move_data)
+		if in_check then self:filter_illegal_moves(unit) end
 	end
 end
 
-function Board:pawn_moves(unit, move_data)
+function Board:filter_illegal_moves(piece, board)
+	local moves_board = board or self.board_highlight
+
+	for i,square in ipairs(moves_board) do
+		--for each potential move, we try it out on a test board
+		--and see if any of the opponents responses is a capture of the king.
+		--If it is, we know our potential move was illegal, so we remove it
+		--from the possible moves it can play.
+		local test_board = table_shallow_copy(self.board_pieces)
+		if square == 1 or square == 2 then
+			local valid = self:test_move(piece, i, test_board)
+			if not valid then moves_board[i] = 0 end
+		end
+	end
+end
+
+function Board:pawn_moves(unit, move_data, board)
+	local moves_board = board or self.board_highlight
+
 	local offsets
 	if unit.first_move then
 		offsets = unit.info[unit.asset_color].move_1
@@ -248,7 +381,7 @@ function Board:pawn_moves(unit, move_data)
 		local target_square = self.board_pieces[target_index]
 
 		if target_square ~= 0 and target_square.color ~= unit.color then
-			self.board_highlight[target_index] = 1
+			moves_board[target_index] = 2
 		end
 	end
 
@@ -259,7 +392,7 @@ function Board:pawn_moves(unit, move_data)
 
 		if target_square == 0 then
 			--square is empty
-			self.board_highlight[target_index] = 1
+			moves_board[target_index] = 1
 		else
 			--on move 1, if there is a piece in front of the pawn it can't skip
 			--over it to move two squares. so we stop here.
@@ -268,22 +401,24 @@ function Board:pawn_moves(unit, move_data)
 	end
 
 	--check en passant
-	self:check_en_passant(unit)
+	self:check_en_passant(unit, moves_board)
 end
 
-function Board:check_en_passant(pawn)
+function Board:check_en_passant(pawn, moves_board)
 	local left = self.board_pieces[pawn.index-1]
 	local right = self.board_pieces[pawn.index+1]
+
 	if left and left ~= 0 then
 		if self.last_move[1] == 1
 			and self.last_move[2] == pawn.index-1
 			and self.last_move[3]
+			and (self.last_move[4] == 16 or self.last_move[4] == -16)
 		then
 			if pawn.color == 1 and not self:check_discard_pawn(pawn.index,pawn.index-9) then
-				self.board_highlight[pawn.index-9] = 1
+				moves_board[pawn.index-9] = 2
 				self.was_en_passant = left
 			elseif not self:check_discard_pawn(pawn.index,pawn.index+7) then
-				self.board_highlight[pawn.index+7] = 1
+				moves_board[pawn.index+7] = 2
 				self.was_en_passant = left
 			end
 		end
@@ -292,12 +427,13 @@ function Board:check_en_passant(pawn)
 		if self.last_move[1] == 1
 			and self.last_move[2] == pawn.index+1
 			and self.last_move[3]
+			and (self.last_move[4] == 16 or self.last_move[4] == -16)
 		then
 			if pawn.color == 1 and not self:check_discard_pawn(pawn.index,pawn.index-7) then
-				self.board_highlight[pawn.index-7] = 1
+				moves_board[pawn.index-7] = 2
 				self.was_en_passant = right
 			elseif not self:check_discard_pawn(pawn.index,pawn.index+9) then
-				self.board_highlight[pawn.index+9] = 1
+				moves_board[pawn.index+9] = 2
 				self.was_en_passant = right
 			end
 		end
@@ -313,16 +449,17 @@ function Board:check_discard_pawn(pawn_i,target_i)
 	return false
 end
 
-function Board:knight_moves(unit, move_data)
+function Board:knight_moves(unit, move_data, board)
+	local moves_board = board or self.board_highlight
 	for _,offset in ipairs(unit.info.move) do
 		local target_index = unit.index + offset
 		local target_square = self.board_pieces[target_index]
 
 		if target_square and not self:check_discard_knight(unit.index, target_index) then
 			if target_square == 0 then
-				self.board_highlight[target_index] = 1
+				moves_board[target_index] = 1
 			elseif target_square.color ~= unit.color then
-				self.board_highlight[target_index] = 1
+				moves_board[target_index] = 2
 			end
 		end
 	end
@@ -337,22 +474,66 @@ function Board:check_discard_knight(knight_i, target_i)
 	return false
 end
 
-function Board:king_moves(unit, move_data)
+function Board:king_moves(unit, move_data, board)
+	local moves_board = board or self.board_highlight
+
 	for _,offset in ipairs(unit.info.move) do
 		local target_index = unit.index + offset
 		local target_square = self.board_pieces[target_index]
 
 		if target_square then
 			if target_square == 0 then
-				self.board_highlight[target_index] = 1
+				moves_board[target_index] = 1
 			elseif target_square.color ~= unit.color then
-				self.board_highlight[target_index] = 1
+				moves_board[target_index] = 2
 			end
 		end
 	end
+
+	self:check_castling(unit)
 end
 
-function Board:sliding_moves(unit, move_data)
+function Board:check_castling(king)
+	if not king.first_move then
+		self.can_castle_l = false
+		self.can_castle_r = false
+		return
+	end
+	for i,p in ipairs(self.board_pieces) do
+		if p ~= 0
+		and king.color == p.color
+		and p.piece == "rook"
+		and p.first_move
+		then
+			--check if the square between the rook & king are empty
+			if p.index < king.index then --rook is to the left of king
+				local start_i = p.index+1
+				local end_i = king.index-1
+				for index=start_i,end_i do
+					local square = self.board_pieces[index]
+					if square ~= 0 then goto continue end
+				end
+				--if we made it here, then castling is legal
+				self.board_highlight[king.index-2] = 1
+				self.can_castle_l = p
+			elseif p.index > king.index then --rook is to the right of king
+				local start_i = p.index-1
+				local end_i = king.index+1
+				for index=start_i,end_i do
+					local square = self.board_pieces[index]
+					if square ~= 0 then goto continue end
+				end
+				--if we made it here, then castling is legal
+				self.board_highlight[king.index+2] = 1
+				self.can_castle_r = p
+			end
+		end
+		::continue::
+	end
+end
+
+function Board:sliding_moves(unit, move_data, board)
+	local moves_board = board or self.board_highlight
 	local start_dir = 1
 	local end_dir = 8
 
@@ -373,7 +554,7 @@ function Board:sliding_moves(unit, move_data)
 				goto continue
 			else
 				if target_square == 0 then --square is empty
-					self.board_highlight[target_index] = 1
+					moves_board[target_index] = 1
 				else
 					if target_square.color == unit.color then --square contains allied piece
 						dir = dir + 1
@@ -381,7 +562,7 @@ function Board:sliding_moves(unit, move_data)
 					else
 						--target square's piece can be captured,
 						--but no more moves are possible in that direction
-						self.board_highlight[target_index] = 1
+						moves_board[target_index] = 2
 						dir = dir + 1
 						goto continue
 					end
@@ -393,6 +574,7 @@ function Board:sliding_moves(unit, move_data)
 end
 
 function Board:check_checkmate(unit)
+	--test for check
 	local move_data = MoveData[unit.index]
 	if unit.piece == "pawn" then
 		self:pawn_check(unit, move_data)
@@ -401,41 +583,62 @@ function Board:check_checkmate(unit)
 	elseif unit.info.sliding then
 		self:sliding_check(unit, move_data)
 	end
+
+	--if check, test for checkmate
+	if self.is_in_check ~= -1 then
+		local any_legal_moves = false
+		local opponent = 1 - unit.color
+		local highlight_copy = self:generate_possible_moves(opponent)
+
+		for i,square in ipairs(highlight_copy) do
+			if square == 1 or square == 2 then
+				--print('valid : ', i, square)
+				any_legal_moves = true
+			end
+		end
+		if not any_legal_moves then self.checkmate = opponent end
+	end
 end
 
-function Board:pawn_check(unit, move_data)
+function Board:pawn_check(unit, move_data, is_test_board)
+	local board = is_test_board or self.board_pieces
 	--check for possible captures
 	local offsets_cap = unit.info[unit.asset_color].move_cap
 	for _,offset in ipairs(offsets_cap) do
 		local target_index = unit.index + offset
-		local target_square = self.board_pieces[target_index]
+		local target_square = board[target_index]
 
 		if target_square ~= 0
 		and target_square.color ~= unit.color
 		and target_square.piece == 'king' then
+			if is_test_board then return true else SFX.check:play() end
 			self.is_in_check = target_square.color
-			SFX.check:play()
 		end
 	end
+	return false
 end
 
-function Board:knight_check(unit, move_data)
+function Board:knight_check(unit, move_data, is_test_board)
+	local board = is_test_board or self.board_pieces
+
 	for _,offset in ipairs(unit.info.move) do
 		local target_index = unit.index + offset
-		local target_square = self.board_pieces[target_index]
+		local target_square = board[target_index]
 
 		if target_square then
 			if target_square ~= 0
 			and target_square.color ~= unit.color
 			and target_square.piece == 'king' then
+				if is_test_board then return true else SFX.check:play() end
 				self.is_in_check = target_square.color
-				SFX.check:play()
 			end
 		end
 	end
+	return false
 end
 
-function Board:sliding_check(unit, move_data)
+function Board:sliding_check(unit, move_data, is_test_board)
+	local board = is_test_board or self.board_pieces
 	local start_dir = 1
 	local end_dir = 8
 
@@ -449,7 +652,7 @@ function Board:sliding_check(unit, move_data)
 	for dir=start_dir,end_dir do
 		for i=1,move_data[dir] do
 			local target_index = unit.index + DirectionOffsets[dir] * i
-			local target_square= self.board_pieces[target_index]
+			local target_square= board[target_index]
 
 			if not target_square then --off the board
 				dir = dir + 1 --skip to the next direction
@@ -464,8 +667,8 @@ function Board:sliding_check(unit, move_data)
 						--target square's piece can be captured,
 						--but no more moves are possible in that direction
 						if target_square.piece == 'king' then
+							if is_test_board then return true else SFX.check:play() end
 							self.is_in_check = target_square.color
-							SFX.check:play()
 						end
 						dir = dir + 1
 						goto continue
@@ -475,10 +678,29 @@ function Board:sliding_check(unit, move_data)
 		end
 		::continue::
 	end
+	return false
+end
+
+function Board:king_check(unit, move_data, is_test_board)
+	local board = is_test_board or self.board_pieces
+
+	for _,offset in ipairs(unit.info.move) do
+		local target_index = unit.index + offset
+		local target_square = board[target_index]
+
+		if target_square then
+			if target_square == 0 then
+			elseif target_square.color ~= unit.color then
+				if target_square.piece == 'king' then return true end
+			end
+		end
+	end
 end
 
 function Board:check_valid_move(new_index)
-	if self.board_highlight[new_index] == 1 then return true end
+	if self.board_highlight[new_index] == 1 or self.board_highlight[new_index] == 2 then
+		return true
+	end
 	return false
 end
 
