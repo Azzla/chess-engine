@@ -1,3 +1,3 @@
 function love.conf(t)
-	t.window.title = "Dead Blunders"
+	t.window.title = "Chess"
 end
