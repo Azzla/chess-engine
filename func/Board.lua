@@ -210,10 +210,11 @@ function Board:test_move(piece, new_index, board)
 			elseif p.piece == "knight" then
 				if self:knight_check(p, move_data, board) then move_valid = false end
 			elseif p.info.sliding then
-				--TODO: Why is this broken?
 				if self:sliding_check(p, move_data, board) then move_valid = false end
 			else
-				--if self:king_check(p, move_data, board) then move_valid = false end
+				--we have to test if king "checks" are possible in order to
+				--disallow both kings from moving into each other's capture radius.
+				if self:king_check(p, move_data, board) then move_valid = false end
 			end
 		end
 	end
