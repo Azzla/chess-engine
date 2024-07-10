@@ -32,4 +32,10 @@ Positions[2] =
 	FEN = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R"
 }
 
+Positions[3] =
+{
+	name = "Checkmate-Test",
+	FEN = "4k3/pppppppp/8/8/8/8/8/QQQQKQQQ"
+}
+
 return Positions
