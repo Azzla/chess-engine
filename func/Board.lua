@@ -81,7 +81,6 @@ function Board:init(scale, _fen)
 	self.tile_w				= 450
 	self.screen_offset_x	= (Options.w - (self.tile_w*self.squares*self.scale))/2
 	self.screen_offset_y	= (Options.h - (self.tile_w*self.squares*self.scale))/2
-	self.units				= {}
 	self.unit_selected		= nil --tracks a selected unit
 	self.color_to_move		= 1 --1 = white; 0 = black;
 
@@ -96,6 +95,23 @@ function Board:init(scale, _fen)
 	self.can_castle_r		= false --becomes the rook to move with the king
 	self.is_in_check		= -1 -- 1 for white, 0 for black
 	self.checkmate			= -1 -- 1 for white, black wins; 0 for black, white wins
+
+	FENParser.parse(_fen, self)
+	self:populate()
+end
+
+function Board:reset(_fen)
+	self.board_loyalty		= table_shallow_copy(blank_board)
+	self.board_highlight	= table_shallow_copy(blank_board)
+	self.board_pieces		= table_shallow_copy(blank_board)
+	self.unit_selected		= nil --tracks a selected unit
+	self.color_to_move		= 1 --1 = white; 0 = black;
+	self.last_move			= {-1,-1,false,0}
+	self.was_en_passant		= false
+	self.can_castle_l		= false
+	self.can_castle_r		= false
+	self.is_in_check		= -1
+	self.checkmate			= -1
 
 	FENParser.parse(_fen, self)
 	self:populate()
@@ -138,10 +154,6 @@ function Board:draw_background()
 			self.tile_w*self.scale,
 			self.tile_w*self.scale
 		)
-		
-		love.graphics.setColor(0,0,0,1)
-		love.graphics.setFont(Font_8)
-		love.graphics.print(tostring(i), tx+2, ty+2)
 
 		if self.board_highlight[i] == 1 then
 			--moveable square color
@@ -164,6 +176,10 @@ function Board:draw_background()
 				self.tile_w*self.scale
 			)	
 		end
+
+		love.graphics.setColor(0,0,0,1)
+		love.graphics.setFont(Font_8)
+		love.graphics.print(tostring(i), tx+2, ty+2)
 	end
 end
 
@@ -187,16 +203,17 @@ function Board:test_move(piece, new_index, board)
 
 	for i,p in ipairs(board) do
 		if p ~= 0 and p.color ~= piece.color then
-			local move_data = MoveData[p.index]
+			local move_data = MoveData[i]
 			--test enemy piece possible captures of king
 			if p.piece == "pawn" then
 				if self:pawn_check(p, move_data, board) then move_valid = false end
 			elseif p.piece == "knight" then
 				if self:knight_check(p, move_data, board) then move_valid = false end
 			elseif p.info.sliding then
+				--TODO: Why is this broken?
 				if self:sliding_check(p, move_data, board) then move_valid = false end
 			else
-				if self:king_check(p, move_data, board) then move_valid = false end
+				--if self:king_check(p, move_data, board) then move_valid = false end
 			end
 		end
 	end
@@ -292,7 +309,7 @@ function Board:get_tile(x,y)
 		local _x,_y = to_xy_coordinates(i-1)
 
 		local tx = (_x) * self.tile_w * self.scale + (self.screen_offset_x)
-		local ty = (_y) * self.tile_w * self.scale + (self.screen_offset_y)			
+		local ty = (_y) * self.tile_w * self.scale + (self.screen_offset_y)
 	
 		if tx >= x and tx <= x + (self.tile_w*self.scale) and ty >= y and ty <= y + (self.tile_w*self.scale) then
 			return {x=_x,y=_y}
@@ -300,64 +317,88 @@ function Board:get_tile(x,y)
 	end
 end
 
+local function combine_boards(...)
+	local combined_board = table_shallow_copy(blank_board)
+	for _,board in ipairs({...}) do
+		for i,v in ipairs(board) do
+			if (v == 1 or v == 2) then combined_board[i] = v end
+		end
+	end
+	return combined_board
+end
+local function table_bitwise_OR(t1,t2)
+	for i,v in ipairs(t2) do
+		if v == 1 or v == 2 then t1[i] = v end
+	end
+	return t1
+end
+
 function Board:generate_possible_moves(color)
-	local moves_board = table_shallow_copy(blank_board)
-	local piece_board = table_shallow_copy(self.board_pieces)
+	-- we need to use separate boards for every piece, then combine them
+	-- all to check if there are any available moves possible.
+	local pawn_board	= table_shallow_copy(blank_board)
+	local knight_board	= table_shallow_copy(blank_board)
+	local sliding_board	= table_shallow_copy(blank_board)
+	local king_board	= table_shallow_copy(blank_board)
+	local piece_board	= table_shallow_copy(self.board_pieces)
 	
 	for i,unit in ipairs(piece_board) do
-		if unit == 0 then goto continue end
-		if not unit.color == color then goto continue end
+		if unit ~= 0 and unit.color == color then
+			local move_data = MoveData[i]
 
-		local move_data = MoveData[i]
-		if unit.piece == "pawn" then
-			self:pawn_moves(unit, move_data, moves_board)
-			self:filter_illegal_moves(unit, moves_board)
-		elseif unit.piece == "knight" then
-			self:knight_moves(unit, move_data, moves_board)
-			self:filter_illegal_moves(unit, moves_board)
-		elseif unit.info.sliding then
-			self:sliding_moves(unit, move_data, moves_board)
-			self:filter_illegal_moves(unit, moves_board)
-		elseif unit.piece == 'king' then
-			self:king_moves(unit, move_data, moves_board)
-			self:filter_illegal_moves(unit, moves_board)
+			if unit.piece == 'pawn' then
+				local board = table_shallow_copy(blank_board)
+				self:pawn_moves(unit, move_data, board)
+				self:filter_illegal_moves(unit, board)
+				pawn_board = table_bitwise_OR(pawn_board, board)
+			elseif unit.piece == 'knight' then
+				local board = table_shallow_copy(blank_board)
+				self:knight_moves(unit, move_data, board)
+				self:filter_illegal_moves(unit, board)
+				knight_board = table_bitwise_OR(knight_board, board)
+			elseif unit.info.sliding then
+				local board = table_shallow_copy(blank_board)
+				self:sliding_moves(unit, move_data, board)
+				self:filter_illegal_moves(unit, board)
+				sliding_board = table_bitwise_OR(sliding_board, board)
+			elseif unit.piece == 'king' then
+				self:king_moves(unit, move_data, king_board)
+				self:filter_illegal_moves(unit, king_board)
+			end
 		end
-		::continue::
 	end
 
-	return moves_board
+	return combine_boards(pawn_board, knight_board, sliding_board, king_board)
 end
 
 function Board:generate_moves(unit)
 	if unit.color ~= self.color_to_move then return end --we only consider the side who's turn to move it is.
 	local move_data = MoveData[unit.index]
-	local in_check = unit.color == self.is_in_check
 
 	if unit.piece == "pawn" then
 		self:pawn_moves(unit, move_data)
-		if in_check then self:filter_illegal_moves(unit) end
+		self:filter_illegal_moves(unit)
 	elseif unit.piece == "knight" then
 		self:knight_moves(unit, move_data)
-		if in_check then self:filter_illegal_moves(unit) end
+		self:filter_illegal_moves(unit)
 	elseif unit.info.sliding then
 		self:sliding_moves(unit, move_data)
-		if in_check then self:filter_illegal_moves(unit) end
+		self:filter_illegal_moves(unit)
 	else
 		self:king_moves(unit, move_data)
-		if in_check then self:filter_illegal_moves(unit) end
+		self:filter_illegal_moves(unit)
 	end
 end
 
 function Board:filter_illegal_moves(piece, board)
 	local moves_board = board or self.board_highlight
-
 	for i,square in ipairs(moves_board) do
 		--for each potential move, we try it out on a test board
 		--and see if any of the opponents responses is a capture of the king.
 		--If it is, we know our potential move was illegal, so we remove it
 		--from the possible moves it can play.
-		local test_board = table_shallow_copy(self.board_pieces)
 		if square == 1 or square == 2 then
+			local test_board = table_shallow_copy(self.board_pieces)
 			local valid = self:test_move(piece, i, test_board)
 			if not valid then moves_board[i] = 0 end
 		end
@@ -481,7 +522,7 @@ function Board:king_moves(unit, move_data, board)
 		local target_index = unit.index + offset
 		local target_square = self.board_pieces[target_index]
 
-		if target_square then
+		if target_square and not self:check_discard_pawn(unit.index, target_index) then
 			if target_square == 0 then
 				moves_board[target_index] = 1
 			elseif target_square.color ~= unit.color then
@@ -505,7 +546,7 @@ function Board:check_castling(king)
 		and p.piece == "rook"
 		and p.first_move
 		then
-			--check if the square between the rook & king are empty
+			--check if the squares between the rook & king are empty
 			if p.index < king.index then --rook is to the left of king
 				local start_i = p.index+1
 				local end_i = king.index-1
@@ -588,11 +629,10 @@ function Board:check_checkmate(unit)
 	if self.is_in_check ~= -1 then
 		local any_legal_moves = false
 		local opponent = 1 - unit.color
-		local highlight_copy = self:generate_possible_moves(opponent)
 
+		local highlight_copy = self:generate_possible_moves(opponent)
 		for i,square in ipairs(highlight_copy) do
 			if square == 1 or square == 2 then
-				--print('valid : ', i, square)
 				any_legal_moves = true
 			end
 		end
@@ -641,25 +681,19 @@ function Board:sliding_check(unit, move_data, is_test_board)
 	local board = is_test_board or self.board_pieces
 	local start_dir = 1
 	local end_dir = 8
-
-	if unit.piece == "rook" then
-		end_dir = 4
-	end
-	if unit.piece == "bishop" then
-		start_dir = 5
-	end
+	if unit.piece == "rook" then end_dir = 4 end
+	if unit.piece == "bishop" then start_dir = 5 end
 
 	for dir=start_dir,end_dir do
 		for i=1,move_data[dir] do
 			local target_index = unit.index + DirectionOffsets[dir] * i
 			local target_square= board[target_index]
 
-			if not target_square then --off the board
-				dir = dir + 1 --skip to the next direction
+			if not target_square then
+				dir = dir + 1
 				goto continue
 			else
-				if target_square == 0 then --square is empty
-				else
+				if target_square ~= 0 then
 					if target_square.color == unit.color then --square contains allied piece
 						dir = dir + 1
 						goto continue
