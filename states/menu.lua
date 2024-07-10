@@ -28,8 +28,4 @@ function Menu:draw()
 	self.ui:draw()
 end
 
-function Menu:leave(next)
-
-end
-
 return Menu

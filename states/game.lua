@@ -4,9 +4,10 @@ local Board = nil
 function Game:enter(previous)
 	Board = require('func.Board')
 	self.scale = 0.25
-
+	self.ui = SUIT.new()
 	Board:init(self.scale, Positions[1].FEN) --Default Position
 	--Board:init(self.scale, Positions[2].FEN) --Castling Test
+	--Board:init(self.scale, Positions[3].FEN) --Checkmate Test
 end
 
 function Game:draw()
@@ -19,11 +20,25 @@ function Game:draw()
 	if Board.checkmate == 1 then
 		love.graphics.setColor(1,1,1,1)
 		love.graphics.setFont(Font_64)
-		love.graphics.printf("Black Wins", 0, 10, Options.w)
+		love.graphics.printf("Black Wins", 0, 5, Options.w, 'center')
 	elseif Board.checkmate == 0 then
 		love.graphics.setColor(1,1,1,1)
 		love.graphics.setFont(Font_64)
-		love.graphics.printf("White Wins", 0, 10, Options.w)
+		love.graphics.printf("White Wins", 0, 5, Options.w, 'center')
+	end
+
+	if Board.check ~= -1 then
+		self.ui:draw()
+	end
+end
+
+function Game:update(dt)
+	if Board.checkmate ~= -1 then
+		local btn_w = 300
+		self.ui.layout:reset(Options.w/2-btn_w/2,Options.h-80)
+		if self.ui:Button("reset", self.ui.layout:row(btn_w, 80)).hit then
+			Board:reset(Positions[1].FEN)
+		end
 	end
 end
 
