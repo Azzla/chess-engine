@@ -97,6 +97,8 @@ function Board:init(scale, _fen)
 	self.is_in_check		= -1 -- 1 for white, 0 for black
 	self.checkmate			= -1 -- 1 for white, black wins; 0 for black, white wins
 	self.promoting			= false --enables the interface for selecting a promotion piece
+	self.w_time				= 180 --3 minutes in seconds
+	self.b_time				= 180 --3 minutes in seconds
 
 	FENParser.parse(_fen, self)
 	self:populate()
@@ -114,6 +116,9 @@ function Board:reset(_fen)
 	self.can_castle_r		= false
 	self.is_in_check		= -1
 	self.checkmate			= -1
+	self.promoting			= false
+	self.w_time				= 180 --seconds
+	self.b_time				= 180 --seconds
 
 	FENParser.parse(_fen, self)
 	self:populate()
@@ -137,6 +142,8 @@ function Board:populate()
 end
 
 function Board:update(dt)
+	self:update_timers(dt)
+
 	if not self.promoting then return end
 	local btn_w = self.tile_w*self.scale
 	local x,y = self.promoting.x, self.promoting.y
@@ -168,7 +175,26 @@ function Board:update(dt)
 	end
 end
 
+function Board:update_timers(dt)
+	local white_moved = self.last_move[1] ~= -1
+	if not white_moved then return end
+	if self.checkmate ~= -1 then return end
+	if self.color_to_move == 1 then self.w_time = self.w_time - dt end
+	if self.color_to_move == 0 then self.b_time = self.b_time - dt end
+	if self.w_time <= 0 then
+		SFX.checkmate:play()
+		self.checkmate = 1
+		self.w_time = 0
+	end
+	if self.b_time <= 0 then
+		SFX.checkmate:play()
+		self.checkmate = 0
+		self.b_time = 0
+	end
+end
+
 function Board:draw()
+	self:draw_timers()
 	for i,unit in ipairs(self.board_pieces) do
 		if unit ~= 0 then
 			if not unit.selected then
@@ -247,10 +273,24 @@ function Board:draw_background()
 			)	
 		end
 
-		love.graphics.setColor(0,0,0,1)
-		love.graphics.setFont(Font_8)
-		love.graphics.print(tostring(i), tx+2, ty+2)
+		--love.graphics.setColor(0,0,0,1)
+		--love.graphics.setFont(Font_8)
+		--love.graphics.print(tostring(i), tx+2, ty+2)
 	end
+end
+
+function Board:draw_timers()
+    local min_w = math.floor(math.fmod(self.w_time, 3600) / 60)
+    local sec_w = math.floor(math.fmod(self.w_time, 60))
+    local min_b = math.floor(math.fmod(self.b_time, 3600) / 60)
+    local sec_b = math.floor(math.fmod(self.b_time, 60))
+	if sec_w == 0 then sec_w = tostring(sec_w)..'0' elseif
+	   sec_w < 10 then sec_w = '0'..tostring(sec_w) end
+	if sec_b == 0 then sec_b = tostring(sec_b)..'0' elseif
+	   sec_b < 10 then sec_b = '0'..tostring(sec_b) end
+
+	love.graphics.print(tostring(min_b)..':'..tostring(sec_b), 50, 100)
+	love.graphics.print(tostring(min_w)..':'..tostring(sec_w), 50, Options.h-180)
 end
 
 function Board:select_piece(x,y)
