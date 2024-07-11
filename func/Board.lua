@@ -52,6 +52,7 @@ local blank_board = {
 function Board:init(scale, _fen)
 	self.scale = scale or 1
 	self.squares = 8
+	self.ui = SUIT.new()
 	self.light_color = {love.math.colorFromBytes(235,236,208,255)}
 	self.dark_color = {love.math.colorFromBytes(115,149,82,255)}
 	self.move_high = {love.math.colorFromBytes(235,97,80,204)}
@@ -95,6 +96,7 @@ function Board:init(scale, _fen)
 	self.can_castle_r		= false --becomes the rook to move with the king
 	self.is_in_check		= -1 -- 1 for white, 0 for black
 	self.checkmate			= -1 -- 1 for white, black wins; 0 for black, white wins
+	self.promoting			= false --enables the interface for selecting a promotion piece
 
 	FENParser.parse(_fen, self)
 	self:populate()
@@ -120,9 +122,49 @@ end
 function Board:populate()
 	for i,piece in ipairs(self.board_pieces) do
 		if piece ~= 0 then
-			local unit = Unit(piece, i-1, self.board_loyalty[i], self.tile_w, self.screen_offset_x, self.screen_offset_y, self.scale)
+			local unit = Unit(
+				piece,
+				i-1,
+				self.board_loyalty[i],
+				self.tile_w,
+				self.screen_offset_x,
+				self.screen_offset_y,
+				self.scale
+			)
 			self.board_pieces[i] = unit
 		end
+	end
+end
+
+function Board:update(dt)
+	if not self.promoting then return end
+	local btn_w = self.tile_w*self.scale
+	local x,y = self.promoting.x, self.promoting.y
+	local index = self.promoting.index
+	local color = self.promoting.asset_color
+	local loyalty = self.promoting.color
+
+	self.ui.layout:reset(x-btn_w,y)
+	local queen_btn = self.ui:Button("", {id=6}, self.ui.layout:row(btn_w,btn_w))
+	local rook_btn = self.ui:Button("", {id=4}, self.ui.layout:row())
+	local bishop_btn = self.ui:Button("", {id=3}, self.ui.layout:row())
+	local knight_btn = self.ui:Button("", {id=2}, self.ui.layout:row())
+
+	if queen_btn.hit then
+		self:promote(index, loyalty, queen_btn.id)
+		self.promoting = false
+	end
+	if rook_btn.hit then
+		self:promote(index, loyalty, rook_btn.id)
+		self.promoting = false
+	end
+	if bishop_btn.hit then
+		self:promote(index, loyalty, bishop_btn.id)
+		self.promoting = false
+	end
+	if knight_btn.hit then
+		self:promote(index, loyalty, knight_btn.id)
+		self.promoting = false
 	end
 end
 
@@ -136,6 +178,34 @@ function Board:draw()
 			end
 		end
 	end
+	if self.promoting then
+		self.ui:draw()
+		self:draw_promotion_buttons(self.promoting.asset_color)
+	end
+end
+
+function Board:draw_promotion_buttons(color)
+	local x,y = self.ui.layout._x+10, self.ui.layout._y+10
+	love.graphics.draw(
+		Assets[color].queen,
+		x,y-self.tile_w*self.scale*3, 0,
+		self.scale, self.scale
+	)
+	love.graphics.draw(
+		Assets[color].rook,
+		x,y-self.tile_w*self.scale*2, 0,
+		self.scale, self.scale
+	)
+	love.graphics.draw(
+		Assets[color].bishop,
+		x,y-self.tile_w*self.scale, 0,
+		self.scale, self.scale
+	)
+	love.graphics.draw(
+		Assets[color].knight,
+		x,y, 0,
+		self.scale, self.scale
+	)
 end
 
 function Board:draw_background()
@@ -184,6 +254,8 @@ function Board:draw_background()
 end
 
 function Board:select_piece(x,y)
+	if self.promoting then return end
+
 	local tile = self:get_tile(x,y)
 	if tile then
 		local index = xy_to_index(tile.x,tile.y)
@@ -223,6 +295,7 @@ function Board:test_move(piece, new_index, board)
 end
 
 function Board:move_piece(x,y)
+	if self.promoting then return end
 	if not self.unit_selected then
 		self.board_highlight = table_shallow_copy(blank_board)
 		return
@@ -244,12 +317,12 @@ function Board:move_piece(x,y)
 				SFX.capture:play()
 			else SFX.move:play() end
 
-			if self.was_en_passant then
+			if self.was_en_passant and self.board_highlight[index] == 2 then
 				self.board_pieces[self.was_en_passant.index] = 0
 				self.was_en_passant:kill()
 				SFX.capture:play()
-				self.was_en_passant = false
 			end
+			self.was_en_passant = false
 
 			--reflect the move on the board state
 			self.board_pieces[prev_index] = 0
@@ -257,6 +330,7 @@ function Board:move_piece(x,y)
 
 			--store the move as the last move played
 			self.last_move = { self.unit_selected.info._id, index, self.unit_selected.first_move, prev_index-index}
+			----------------------------------------
 
 			--move the selected piece to the new square
 			self.unit_selected:move(index)
@@ -336,7 +410,7 @@ end
 
 function Board:generate_possible_moves(color)
 	-- we need to use separate boards for every piece, then combine them
-	-- all to check if there are any available moves possible.
+	-- all to check if there are any available moves.
 	local pawn_board	= table_shallow_copy(blank_board)
 	local knight_board	= table_shallow_copy(blank_board)
 	local sliding_board	= table_shallow_copy(blank_board)
@@ -422,7 +496,9 @@ function Board:pawn_moves(unit, move_data, board)
 		local target_index = unit.index + offset
 		local target_square = self.board_pieces[target_index]
 
-		if target_square ~= 0 and target_square.color ~= unit.color then
+		if target_square
+		and target_square ~= 0
+		and target_square.color ~= unit.color then
 			moves_board[target_index] = 2
 		end
 	end
@@ -493,6 +569,7 @@ end
 
 function Board:knight_moves(unit, move_data, board)
 	local moves_board = board or self.board_highlight
+
 	for _,offset in ipairs(unit.info.move) do
 		local target_index = unit.index + offset
 		local target_square = self.board_pieces[target_index]
@@ -532,10 +609,10 @@ function Board:king_moves(unit, move_data, board)
 		end
 	end
 
-	self:check_castling(unit)
+	self:check_castling(unit, moves_board)
 end
 
-function Board:check_castling(king)
+function Board:check_castling(king, moves_board)
 	if not king.first_move then
 		self.can_castle_l = false
 		self.can_castle_r = false
@@ -556,7 +633,7 @@ function Board:check_castling(king)
 					if square ~= 0 then goto continue end
 				end
 				--if we made it here, then castling is legal
-				self.board_highlight[king.index-2] = 1
+				moves_board[king.index-2] = 1
 				self.can_castle_l = p
 			elseif p.index > king.index then --rook is to the right of king
 				local start_i = p.index-1
@@ -566,7 +643,7 @@ function Board:check_castling(king)
 					if square ~= 0 then goto continue end
 				end
 				--if we made it here, then castling is legal
-				self.board_highlight[king.index+2] = 1
+				moves_board[king.index+2] = 1
 				self.can_castle_r = p
 			end
 		end
@@ -590,7 +667,6 @@ function Board:sliding_moves(unit, move_data, board)
 		for i=1,move_data[dir] do
 			local target_index = unit.index + DirectionOffsets[dir] * i
 			local target_square= self.board_pieces[target_index]
-
 			if not target_square then --off the board
 				dir = dir + 1 --skip to the next direction
 				goto continue
@@ -631,8 +707,8 @@ function Board:check_checkmate(unit)
 		local any_legal_moves = false
 		local opponent = 1 - unit.color
 
-		local highlight_copy = self:generate_possible_moves(opponent)
-		for i,square in ipairs(highlight_copy) do
+		local possible_moves = self:generate_possible_moves(opponent)
+		for i,square in ipairs(possible_moves) do
 			if square == 1 or square == 2 then
 				any_legal_moves = true
 			end
@@ -649,7 +725,8 @@ function Board:pawn_check(unit, move_data, is_test_board)
 		local target_index = unit.index + offset
 		local target_square = board[target_index]
 
-		if target_square ~= 0
+		if target_square
+		and target_square ~= 0
 		and target_square.color ~= unit.color
 		and target_square.piece == 'king' then
 			if is_test_board then return true else SFX.check:play() end
@@ -741,26 +818,25 @@ end
 
 function Board:check_promotion(pawn)
 	if pawn.color == 1 and pawn.index >= 1 and pawn.index <= 8 then
-		self:promote(pawn)
+		self.promoting = pawn
 	end
 	if pawn.color == 0 and pawn.index >= 57 and pawn.index <= 64 then
-		self:promote(pawn)
+		self.promoting = pawn
 	end
 end
 
-function Board:promote(pawn)
-	local index = pawn.index
-	local queen = Unit(
-		6, --auto-queen for now
+function Board:promote(index, color, to_piece_id)
+	local piece = Unit(
+		to_piece_id,
 		index-1,
-		pawn.color,
+		color,
 		self.tile_w,
 		self.screen_offset_x,
 		self.screen_offset_y,
 		self.scale
 	)
-	self.board_pieces[index] = queen
-	self.unit_selected = queen
+	self.board_pieces[index] = piece
+	self:check_checkmate(piece)
 	SFX.promote:play()
 end
 
