@@ -5,13 +5,13 @@ function Game:enter(previous)
 	Board = require('func.Board')
 	self.scale = 0.25
 	self.ui = SUIT.new()
-	Board:init(self.scale, Positions[1].FEN) --Default Position
-	--Board:init(self.scale, Positions[2].FEN) --Castling Test
+	--Board:init(self.scale, Positions[1].FEN) --Default Position
+	Board:init(self.scale, Positions[2].FEN) --Castling Test
 	--Board:init(self.scale, Positions[3].FEN) --Checkmate Test
 end
 
 function Game:draw()
-	love.graphics.setColor(Colors.dark_gray)
+	love.graphics.setColor(.2,.25,.2,1)
 	love.graphics.rectangle('fill',0,0,Options.w,Options.h)
 
 	love.graphics.setColor(1,1,1,1)
@@ -33,6 +33,8 @@ function Game:draw()
 end
 
 function Game:update(dt)
+	Board:update(dt)
+
 	if Board.checkmate ~= -1 then
 		local btn_w = 300
 		self.ui.layout:reset(Options.w/2-btn_w/2,Options.h-80)
@@ -43,12 +45,14 @@ function Game:update(dt)
 end
 
 function Game:mousepressed(x, y, btn)
+	if Board.promoting then return end
 	if btn == 1 then
 		Board:select_piece(x, y)
 	end
 end
 
 function Game:mousereleased(x, y, btn)
+	if Board.promoting then return end
 	if btn == 1 then
 		Board:move_piece(x, y)
 	end
