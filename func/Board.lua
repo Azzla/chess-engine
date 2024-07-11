@@ -130,6 +130,7 @@ function Board:reset(_fen)
 
 	FENParser.parse(_fen, self)
 	self:populate()
+	Evaluation:eval(self.board_pieces)
 end
 
 function Board:populate()
@@ -159,6 +160,7 @@ function Board:update(dt)
 	local index = self.promoting.index
 	local color = self.promoting.asset_color
 	local loyalty = self.promoting.color
+	if loyalty == 0 then y = y-btn_w*3 end
 
 	self.ui.layout:reset(x-btn_w,y)
 	local queen_btn = self.ui:Button("", {id=6}, self.ui.layout:row(btn_w,btn_w))
@@ -299,6 +301,7 @@ function Board:draw_timers()
 	if sec_b == 0 then sec_b = tostring(sec_b)..'0' elseif
 	   sec_b < 10 then sec_b = '0'..tostring(sec_b) end
 
+	love.graphics.setColor(self.light_color)
 	love.graphics.print(tostring(min_b)..':'..tostring(sec_b), 50, 100)
 	love.graphics.print(tostring(min_w)..':'..tostring(sec_w), 50, Options.h-180)
 end
@@ -420,13 +423,13 @@ function Board:move_piece(x,y)
 			Evaluation:eval(self.board_pieces)
 		else
 			self.was_en_passant = false
-			self.can_castle_l	= false
-			self.can_castle_r	= false
 		end
 	end
 
 	self.unit_selected.selected = false
 	self.unit_selected = nil
+	self.can_castle_l	= false
+	self.can_castle_r	= false
 
 	--reset board highlights and add last-move highlight
 	self.board_highlight = table_shallow_copy(blank_board)
@@ -667,8 +670,11 @@ function Board:king_moves(unit, move_data, board)
 	self:check_castling(unit, moves_board)
 end
 
+--TODO: Something is totally f****d with castling. Sometimes a promoted
+--rook can castle with the enemy king, even if the king has already moved and
+--there are pieces in-between.  No idea why.
 function Board:check_castling(king, moves_board)
-	if not king.first_move or self.is_in_check ~= -1 then
+	if not king.first_move or self.is_in_check == king.color then
 		self.can_castle_l = false
 		self.can_castle_r = false
 		return
@@ -748,16 +754,30 @@ end
 
 --TODO: Fix "discover" check detection. This function only checks whether
 --the just-moved piece gave a check, but not whether it "revealed" one on
---the enemy king.
+--the enemy king from an allied sliding piece.
 function Board:check_checkmate(unit)
-	--test for check
-	local move_data = MoveData[unit.index]
+	--test for check from this unit
 	if unit.piece == "pawn" then
+		local move_data = MoveData[unit.index]
 		self:pawn_check(unit, move_data)
 	elseif unit.piece == "knight" then
+		local move_data = MoveData[unit.index]
 		self:knight_check(unit, move_data)
 	elseif unit.info.sliding then
+		local move_data = MoveData[unit.index]
 		self:sliding_check(unit, move_data)
+	end
+
+	--test for "discover" check from ally sliding pieces
+	for i,piece in ipairs(self.board_pieces) do
+		if piece
+		and piece ~= 0
+		and piece.color == unit.color
+		and piece.info.sliding
+		then
+			local move_data = MoveData[i]
+			self:sliding_check(piece, move_data)
+		end
 	end
 
 	--if check, test for checkmate

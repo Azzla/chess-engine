@@ -53,6 +53,7 @@ function Evaluation:eval(board)
 	if white_eval > black_eval + 600 then self.b_target_height = self.b_target_height - 70 end
 	if white_eval > black_eval + 800 then self.b_target_height = self.b_target_height - 90 end
 	if self.b_target_height <= 0 then self.b_target_height = 0 end
+	if self.b_target_height >= self.bar_height then self.b_target_height = self.bar_height end
 
 	self.tween = Tween.new(self.tween_t, self, {b_height=self.b_target_height})
 end
