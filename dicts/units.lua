@@ -51,7 +51,8 @@ Units.rook =
 Units.king =
 {
 	_id		= 5,
-	value	= 10000,
+	value	= 400,
+	e_value	= 10000,
 	sliding	= false,
 	move	= {7,9,-7,-9,1,8,-1,-8}
 }

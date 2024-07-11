@@ -2,6 +2,7 @@ local Board = {}
 local MoveData,DirectionOffsets = require('dicts.move_data')()
 local Unit = require('class.Unit')
 local FENParser = require('func.FENParser')
+local Evaluation = require('func.eval')
 
 --these are used to filter out invalid moves
 local a_file = {1,9,17,25,33,41,49,59}
@@ -102,6 +103,13 @@ function Board:init(scale, _fen)
 
 	FENParser.parse(_fen, self)
 	self:populate()
+
+	Evaluation:init(
+		Options.w-self.screen_offset_x+30,
+		self.screen_offset_y,
+		self.tile_w*self.squares*self.scale,
+		self.board_pieces
+	)
 end
 
 function Board:reset(_fen)
@@ -143,6 +151,7 @@ end
 
 function Board:update(dt)
 	self:update_timers(dt)
+	Evaluation:update(dt)
 
 	if not self.promoting then return end
 	local btn_w = self.tile_w*self.scale
@@ -195,6 +204,7 @@ end
 
 function Board:draw()
 	self:draw_timers()
+	Evaluation:draw()
 	for i,unit in ipairs(self.board_pieces) do
 		if unit ~= 0 then
 			if not unit.selected then
@@ -405,14 +415,19 @@ function Board:move_piece(x,y)
 
 			--switch who's turn it is
 			self.color_to_move = 1 - self.color_to_move
+
+			--update the eval bar
+			Evaluation:eval(self.board_pieces)
 		else
 			self.was_en_passant = false
 			self.can_castle_l	= false
 			self.can_castle_r	= false
 		end
 	end
+
 	self.unit_selected.selected = false
 	self.unit_selected = nil
+
 	--reset board highlights and add last-move highlight
 	self.board_highlight = table_shallow_copy(blank_board)
 	self.board_highlight[prev_index] = 3
@@ -731,6 +746,9 @@ function Board:sliding_moves(unit, move_data, board)
 	end
 end
 
+--TODO: Fix "discover" check detection. This function only checks whether
+--the just-moved piece gave a check, but not whether it "revealed" one on
+--the enemy king.
 function Board:check_checkmate(unit)
 	--test for check
 	local move_data = MoveData[unit.index]
@@ -886,6 +904,9 @@ function Board:promote(index, color, to_piece_id)
 	self.board_pieces[index] = piece
 	self:check_checkmate(piece)
 	SFX.promote:play()
+
+	--update the eval bar
+	Evaluation:eval(self.board_pieces)
 end
 
 return Board

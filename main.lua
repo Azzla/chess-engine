@@ -5,6 +5,7 @@ SUIT			= require('lib/suit')
 Scribe			= require('lib/scribe')
 Class			= require('lib/class')
 Timer			= require('lib/timer')
+Tween			= require('lib/tween')
 Options			= require('options')
 States			= Options.getStates()
 ChessFont		= nil
