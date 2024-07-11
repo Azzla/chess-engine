@@ -10,10 +10,10 @@ States			= Options.getStates()
 ChessFont		= nil
 Font_64,Font_32,Font_16,Font_8 = nil,nil,nil,nil
 Colors			= {
-	black = {0,0,0,1},
-	gray = {0.5,0.5,0.5,1},
-	white = {1,1,1,1},
-	dark_gray = {0.13,0.16,0.15,1}
+	light = {love.math.colorFromBytes(235,236,208,255)},
+	dark = {.2,.25,.2,1},
+	highlight_r = {love.math.colorFromBytes(235,97,80,204)},
+	highlight_y = {love.math.colorFromBytes(255,255,51,127)}
 }
 Assets			= nil
 SFX				= nil
@@ -77,9 +77,9 @@ function love.load()
 	love.window.setMode(Options.w, Options.h, Options.flags)
 	Options.w,Options.h = love.graphics.getDimensions()
 	SUIT.theme.color = {
-		normal  = {bg = Colors.black, fg = Colors.white},
-		hovered = {bg = Colors.gray, fg = Colors.white},
-		active  = {bg = Colors.white, fg = Colors.black}
+		normal  = {bg = Colors.dark, fg = Colors.light},
+		hovered = {bg = Colors.light, fg = Colors.dark},
+		active  = {bg = Colors.light, fg = Colors.highlight_r}
 	}
 	SUIT.theme.cornerRadius = 0
 
