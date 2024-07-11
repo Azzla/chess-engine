@@ -6,8 +6,8 @@ function Game:enter(previous)
 	self.scale = 0.25
 	self.ui = SUIT.new()
 	--Board:init(self.scale, Positions[1].FEN) --Default Position
-	Board:init(self.scale, Positions[2].FEN) --Castling Test
-	--Board:init(self.scale, Positions[3].FEN) --Checkmate Test
+	--Board:init(self.scale, Positions[2].FEN) --Castling Test
+	Board:init(self.scale, Positions[3].FEN) --Checkmate Test
 end
 
 function Game:draw()

@@ -47,7 +47,8 @@ local function require_sounds()
 		move = love.audio.newSource('assets/sfx/move-self.mp3', 'static'),
 		capture = love.audio.newSource('assets/sfx/capture.mp3', 'static'),
 		castle = love.audio.newSource('assets/sfx/castle.mp3', 'static'),
-		check = love.audio.newSource('assets/sfx/move-check.mp3', 'static')
+		check = love.audio.newSource('assets/sfx/move-check.mp3', 'static'),
+		checkmate = love.audio.newSource('assets/sfx/checkmate.mp3', 'static')
 	}
 end
 

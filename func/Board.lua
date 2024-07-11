@@ -315,7 +315,7 @@ function Board:move_piece(x,y)
 				--capture this piece
 				target_unit:kill()
 				SFX.capture:play()
-			else SFX.move:play() end
+			end
 
 			if self.was_en_passant and self.board_highlight[index] == 2 then
 				self.board_pieces[self.was_en_passant.index] = 0
@@ -613,7 +613,7 @@ function Board:king_moves(unit, move_data, board)
 end
 
 function Board:check_castling(king, moves_board)
-	if not king.first_move then
+	if not king.first_move or self.is_in_check ~= -1 then
 		self.can_castle_l = false
 		self.can_castle_r = false
 		return
@@ -713,7 +713,15 @@ function Board:check_checkmate(unit)
 				any_legal_moves = true
 			end
 		end
-		if not any_legal_moves then self.checkmate = opponent end
+		if not any_legal_moves then
+			SFX.check:play()
+			SFX.checkmate:play()
+			self.checkmate = opponent
+		else
+			SFX.check:play()
+		end
+	else
+		SFX.move:play()
 	end
 end
 
@@ -729,7 +737,7 @@ function Board:pawn_check(unit, move_data, is_test_board)
 		and target_square ~= 0
 		and target_square.color ~= unit.color
 		and target_square.piece == 'king' then
-			if is_test_board then return true else SFX.check:play() end
+			if is_test_board then return true end
 			self.is_in_check = target_square.color
 		end
 	end
@@ -747,7 +755,7 @@ function Board:knight_check(unit, move_data, is_test_board)
 			if target_square ~= 0
 			and target_square.color ~= unit.color
 			and target_square.piece == 'king' then
-				if is_test_board then return true else SFX.check:play() end
+				if is_test_board then return true end
 				self.is_in_check = target_square.color
 			end
 		end
@@ -779,7 +787,7 @@ function Board:sliding_check(unit, move_data, is_test_board)
 						--target square's piece can be captured,
 						--but no more moves are possible in that direction
 						if target_square.piece == 'king' then
-							if is_test_board then return true else SFX.check:play() end
+							if is_test_board then return true end
 							self.is_in_check = target_square.color
 						end
 						dir = dir + 1
