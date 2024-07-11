@@ -158,8 +158,15 @@ function Board:update(dt)
 	local btn_w = self.tile_w*self.scale
 	local x,y = self.promoting.x, self.promoting.y
 	local index = self.promoting.index
-	local color = self.promoting.asset_color
 	local loyalty = self.promoting.color
+	--Auto-Queen Options--
+	if Options.auto_queen then
+		self:promote(index, loyalty, 6)
+		self.promoting = false
+		return
+	end
+
+	local color = self.promoting.asset_color
 	if loyalty == 0 then y = y-btn_w*3 end
 
 	self.ui.layout:reset(x-btn_w,y)

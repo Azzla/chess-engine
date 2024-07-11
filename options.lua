@@ -21,6 +21,11 @@ Options.reticle_scale		= 1
 Options.use_custom_reticle	= false
 Options.enable_shaders		= false
 
+--Game-Options--
+Options.click_move			= false
+Options.auto_queen			= false
+Options.allow_undo			= false
+
 function Options.getStates()
 	return {
 		menu	= require('states.menu'),

@@ -9,6 +9,10 @@ function Menu:enter(previous)
 		[2] = function() StateManager:enter(States.options) end,
 		[3] = function() love.event.quit() end
 	}
+
+	print(Options.click_move)
+	print(Options.auto_queen)
+	print(Options.allow_undo)
 end
 
 function Menu:update(dt)
