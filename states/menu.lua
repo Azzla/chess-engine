@@ -3,16 +3,13 @@ local BTN_WIDTH = 350
 
 function Menu:enter(previous)
 	self.ui = SUIT.new()
-	self.buttons = {'play', 'options', 'quit'}
+	self.buttons = {'play', 'options', 'test', 'quit'}
 	self.funcs = {
 		[1] = function() StateManager:enter(States.game) end,
 		[2] = function() StateManager:enter(States.options) end,
-		[3] = function() love.event.quit() end
+		[3] = function() StateManager:enter(States.tests) end,
+		[4] = function() love.event.quit() end
 	}
-
-	print(Options.click_move)
-	print(Options.auto_queen)
-	print(Options.allow_undo)
 end
 
 function Menu:update(dt)
