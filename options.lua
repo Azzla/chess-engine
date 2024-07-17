@@ -30,7 +30,8 @@ function Options.getStates()
 	return {
 		menu	= require('states.menu'),
 		options	= require('states.options'),
-		game	= require('states.game')
+		game	= require('states.game'),
+		tests	= require('states.tests')
 	}
 end
 

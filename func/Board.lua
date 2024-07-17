@@ -1,6 +1,7 @@
 local Board = {}
 local MoveData,DirectionOffsets = require('dicts.move_data')()
 local Unit = require('class.Unit')
+local Bot = require('class.Bot')
 local FENParser = require('func.FENParser')
 local Evaluation = require('func.eval')
 
@@ -8,7 +9,7 @@ local Evaluation = require('func.eval')
 local a_file = {1,9,17,25,33,41,49,59}
 local ab_file = {1,9,17,25,33,41,49,59,2,10,18,26,34,42,50,58}
 local gh_file = {7,15,23,31,39,47,55,63,8,16,24,32,40,48,56,64}
-local h_file = {16,24,32,40,48,56,64}
+local h_file = {8,16,24,32,40,48,56,64}
 
 local function to_xy_coordinates(index)
 	local grid_size = 8
@@ -153,6 +154,9 @@ end
 function Board:update(dt)
 	self:update_timers(dt)
 	Evaluation:update(dt)
+	if self.color_to_move == 0 then --make the bot control black
+		Bot:make_random(self)
+	end
 
 	if not self.promoting then return end
 	local btn_w = self.tile_w*self.scale
@@ -160,7 +164,7 @@ function Board:update(dt)
 	local index = self.promoting.index
 	local loyalty = self.promoting.color
 	--Auto-Queen Options--
-	if Options.auto_queen then
+	if Options.auto_queen or loyalty == 0 then
 		self:promote(index, loyalty, 6)
 		self.promoting = false
 		return
@@ -313,12 +317,12 @@ function Board:draw_timers()
 	love.graphics.print(tostring(min_w)..':'..tostring(sec_w), 50, Options.h-180)
 end
 
-function Board:select_piece(x,y)
+function Board:select_piece(x,y,i)
 	if self.promoting then return end
 
 	local tile = self:get_tile(x,y)
-	if tile then
-		local index = xy_to_index(tile.x,tile.y)
+	if i or tile then
+		local index = i or xy_to_index(tile.x,tile.y)
 		local unit = self.board_pieces[index]
 		if unit ~= 0 then --there's a piece on this square
 			self.unit_selected = unit
@@ -354,7 +358,7 @@ function Board:test_move(piece, new_index, board)
 	return move_valid
 end
 
-function Board:move_piece(x,y)
+function Board:move_piece(x,y, i)
 	if self.promoting then return end
 	if not self.unit_selected then
 		self.board_highlight = table_shallow_copy(blank_board)
@@ -365,8 +369,8 @@ function Board:move_piece(x,y)
 	local prev_index = self.unit_selected.index
 	local index
 
-	if tile then --did we click a valid tile? 
-		index = xy_to_index(tile.x,tile.y)
+	if i or tile then --did we click a valid tile? 
+		index = i or xy_to_index(tile.x,tile.y)
 
 		if self:check_valid_move(index) then --is the tile a valid move for the selected piece?
 			self.is_in_check = -1
@@ -563,7 +567,8 @@ function Board:pawn_moves(unit, move_data, board)
 
 		if target_square
 		and target_square ~= 0
-		and target_square.color ~= unit.color then
+		and target_square.color ~= unit.color
+		and not self:check_discard_pawn(unit.index, target_index) then
 			moves_board[target_index] = 2
 		end
 	end
