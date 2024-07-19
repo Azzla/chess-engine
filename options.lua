@@ -22,6 +22,7 @@ Options.use_custom_reticle	= false
 Options.enable_shaders		= false
 
 --Game-Options--
+Options.ai_black			= false
 Options.click_move			= false
 Options.auto_queen			= false
 Options.allow_undo			= false

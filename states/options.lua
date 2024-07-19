@@ -5,14 +5,16 @@ function Opts:enter(previous)
 	self.ui = SUIT.new()
 
 	self.checkboxes = {
+		{text = ' AI Plays Black', checked = Options.ai_black},
 		{text = ' Click-Moves', checked = Options.click_move},
 		{text = ' Allow Undo', checked = Options.allow_undo},
 		{text = ' Auto-Queen Promotions', checked = Options.auto_queen}
 	}
 	self.payload = {
-		[1] = 'click_move',
-		[2] = 'allow_undo',
-		[3] = 'auto_queen'
+		[1] = 'ai_black',
+		[2] = 'click_move',
+		[3] = 'allow_undo',
+		[4] = 'auto_queen'
 	}
 end
 

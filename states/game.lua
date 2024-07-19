@@ -41,6 +41,14 @@ function Game:update(dt)
 		if self.ui:Button("reset", self.ui.layout:row(btn_w, 80)).hit then
 			Board:reset(Positions[1].FEN)
 		end
+	else
+		if Options.allow_undo then
+			local btn_w = 300
+			self.ui.layout:reset(Options.w/2-btn_w/2,Options.h-80)
+			if self.ui:Button("undo", self.ui.layout:row(btn_w, 80)).hit then
+				Board:undo_move()
+			end	
+		end
 	end
 end
 
