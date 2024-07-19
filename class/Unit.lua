@@ -62,10 +62,6 @@ function Unit:move(index)
 	self.first_move = false
 end
 
-function Unit:kill()
-	self = nil
-end
-
 function Unit:get_piece(num)
 	if num == 1 then return 'pawn' end
 	if num == 2 then return 'knight' end
