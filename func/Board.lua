@@ -80,6 +80,7 @@ function Board:init(scale, _fen)
 
 	-- 0 = none; 1 = pawn; 2 = knight; 3 = bishop; 4 = rook; 5 = king; 6 = queen;
 	self.board_pieces = table_shallow_copy(blank_board)
+	self.board_copy = table_shallow_copy(blank_board) --used to copy the previous board state
 
 	self.tile_w				= 450
 	self.screen_offset_x	= (Options.w - (self.tile_w*self.squares*self.scale))/2
@@ -117,6 +118,7 @@ function Board:reset(_fen)
 	self.board_loyalty		= table_shallow_copy(blank_board)
 	self.board_highlight	= table_shallow_copy(blank_board)
 	self.board_pieces		= table_shallow_copy(blank_board)
+	self.board_copy			= table_shallow_copy(blank_board)
 	self.unit_selected		= nil --tracks a selected unit
 	self.color_to_move		= 1 --1 = white; 0 = black;
 	self.last_move			= {-1,-1,false,0}
@@ -154,7 +156,7 @@ end
 function Board:update(dt)
 	self:update_timers(dt)
 	Evaluation:update(dt)
-	if self.color_to_move == 0 then --make the bot control black
+	if self.color_to_move == 0 and Options.ai_black then --make the bot control black
 		Bot:make_random(self)
 	end
 
@@ -358,6 +360,22 @@ function Board:test_move(piece, new_index, board)
 	return move_valid
 end
 
+--TODO: Rigorize.  Maybe a deep copy of the board state,
+--or a flat table recognizing only piece ID's, not table references.
+--Needs to fix capturing, promoting, and castling.
+function Board:undo_move()
+	if not self.last_move[1] then return end
+	local piece = self.board_pieces[self.last_move[2]]
+	local was_first_move = self.last_move[3]
+	piece:move(self.last_move[5])
+	if was_first_move then piece.first_move = true end
+
+	self.board_pieces = self.board_copy
+	self.color_to_move = 1 - self.color_to_move
+	self.board_highlight = table_shallow_copy(blank_board)
+	self.last_move = {false}
+end
+
 function Board:move_piece(x,y, i)
 	if self.promoting then return end
 	if not self.unit_selected then
@@ -373,17 +391,20 @@ function Board:move_piece(x,y, i)
 		index = i or xy_to_index(tile.x,tile.y)
 
 		if self:check_valid_move(index) then --is the tile a valid move for the selected piece?
+			--copy the previous board state so we can undo moves
+			self.board_copy = table_shallow_copy(self.board_pieces)
+
 			self.is_in_check = -1
 			local target_unit = self.board_pieces[index]
 			if target_unit ~= 0 then
 				--capture this piece
-				target_unit:kill()
+				--target_unit:kill()
 				SFX.capture:play()
 			end
 
 			if self.was_en_passant and self.board_highlight[index] == 2 then
 				self.board_pieces[self.was_en_passant.index] = 0
-				self.was_en_passant:kill()
+				--self.was_en_passant:kill()
 				SFX.capture:play()
 			end
 			self.was_en_passant = false
@@ -393,7 +414,13 @@ function Board:move_piece(x,y, i)
 			self.board_pieces[index] = self.unit_selected
 
 			--store the move as the last move played
-			self.last_move = { self.unit_selected.info._id, index, self.unit_selected.first_move, prev_index-index}
+			self.last_move = {
+				self.unit_selected.info._id, --piece type
+				index, --index it moved to
+				self.unit_selected.first_move, --was it that piece's first move
+				prev_index-index, --index offset of the move
+				prev_index --index it move from
+			}
 			----------------------------------------
 
 			--move the selected piece to the new square
@@ -439,8 +466,8 @@ function Board:move_piece(x,y, i)
 
 	self.unit_selected.selected = false
 	self.unit_selected = nil
-	self.can_castle_l	= false
-	self.can_castle_r	= false
+	self.can_castle_l = false
+	self.can_castle_r = false
 
 	--reset board highlights and add last-move highlight
 	self.board_highlight = table_shallow_copy(blank_board)
@@ -478,8 +505,7 @@ local function table_bitwise_OR(t1,t2)
 end
 
 function Board:generate_possible_moves(color)
-	-- we need to use separate boards for every piece, then combine them
-	-- all to check if there are any available moves.
+	--track separate boards for every piece
 	local pawn_board	= table_shallow_copy(blank_board)
 	local knight_board	= table_shallow_copy(blank_board)
 	local sliding_board	= table_shallow_copy(blank_board)
@@ -511,7 +537,9 @@ function Board:generate_possible_moves(color)
 			end
 		end
 	end
+	
 
+	--combine them all to check if there are any available moves
 	return combine_boards(pawn_board, knight_board, sliding_board, king_board)
 end
 
