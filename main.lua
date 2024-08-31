@@ -1,3 +1,4 @@
+jit.off()
 io.stdout:setvbuf('no')
 local Roomy		= require('lib/roomy')
 StateManager	= Roomy.new()
@@ -6,8 +7,9 @@ Scribe			= require('lib/scribe')
 Class			= require('lib/class')
 Timer			= require('lib/timer')
 Tween			= require('lib/tween')
+Profiler		= require('lib/profile')
 Options			= require('options')
-States			= Options.getStates()
+States			= nil
 ChessFont		= nil
 Font_64,Font_32,Font_16,Font_8 = nil,nil,nil,nil
 Colors			= {
@@ -18,7 +20,6 @@ Colors			= {
 }
 Assets			= nil
 SFX				= nil
-Unit_Info		= require('dicts/units')
 Positions		= require('dicts/positions')
 
 local function require_assets()
@@ -67,6 +68,34 @@ return tostring(o)
 end
 end
 
+--utils
+function table_shallow_copy(t)
+	local t2 = {}
+		for k,v in pairs(t) do
+			t2[k] = v
+		end
+	return t2
+end
+
+function table_contains(table, element)
+	for _, value in pairs(table) do
+		if value == element then return true end
+	end
+	return false
+end
+
+function table_add(table, val)
+	for i,value in ipairs(table) do table[i] = value + val end
+	return table
+end
+
+function generate_report(report)
+  local path = Options.profiler_path
+  local file = io.open(path, 'w')
+  file:write(report)
+  file:close()
+end
+
 function love.load()
 	Font_64 = love.graphics.newFont('assets/font/LEMONMILK-Bold.otf', 64)
 	Font_32 = love.graphics.newFont('assets/font/LEMONMILK-Bold.otf', 32)
@@ -75,6 +104,7 @@ function love.load()
 	ChessFont = love.graphics.newFont('assets/font/CHEQ_TT.ttf', 64)
 	Assets = require_assets()
 	SFX = require_sounds()
+	States = Options.getStates()
 
 	love.window.setMode(Options.w, Options.h, Options.flags)
 	Options.w,Options.h = love.graphics.getDimensions()

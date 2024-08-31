@@ -10,19 +10,19 @@ Options.flags.fullscreen	= false
 Options.flags.resizable		= false
 Options.flags.msaa			= 16
 Options.flags.vsync			= false
-Options.enable_profiler 	= false
+Options.enable_profiler 	= true
 Options.profiler_lines		= 16
-Options.profiler_path		= [[D:\LOVE2D\Chess\report.txt]]
-Options.save_path			= [[D:\LOVE2D\Chess\gamesave.txt]]
+Options.profiler_path		= [[K:\Projects\Chess\report.txt]]
 Options.enable_save			= false
 Options.font_path			= ''
 Options.reticle_path		= ''
 Options.reticle_scale		= 1
 Options.use_custom_reticle	= false
 Options.enable_shaders		= false
+Options.display_attacks		= false
 
 --Game-Options--
-Options.ai_black			= false
+Options.ai_black			= true
 Options.click_move			= false
 Options.auto_queen			= false
 Options.allow_undo			= false

@@ -1,3 +1,5 @@
+local MoveGenerator = require('func.MoveGenerator')
+local Board = require('func.Board')
 local Test = {}
 
 function Test:init(position)

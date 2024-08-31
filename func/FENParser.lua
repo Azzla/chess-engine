@@ -8,12 +8,12 @@ local FENParser = {}
 --q = {'b','queen'},	Q = {'w','queen'}
 
 local key = {
-	p = {-1,1},	P = {1,1},
-	n = {-1,2},	N = {1,2},
-	b = {-1,3},	B = {1,3},
-	r = {-1,4},	R = {1,4},
-	k = {-1,5},	K = {1,5},
-	q = {-1,6},	Q = {1,6}
+	p = {0,1},	P = {1,1},
+	n = {0,2},	N = {1,2},
+	b = {0,3},	B = {1,3},
+	r = {0,4},	R = {1,4},
+	k = {0,5},	K = {1,5},
+	q = {0,6},	Q = {1,6}
 }
 
 --WARNING: This function mutates the board state passed in.

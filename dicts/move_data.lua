@@ -2,7 +2,7 @@
 This Dictionary stores information relevant to generating legal moves in a position.
 For any given square index, and a cardinal direction offset,
 we can retrieve the number of squares until we've reached the edge of the board. This number
-is then used to limit how many times we can multiply the offset for any sliding piece.
+is then used to limit how many times we can multiply the direction offset for any sliding piece.
 ]]
 
 local DirectionOffsets = {8,-8,1,-1,7,-7,9,-9}

@@ -4,9 +4,10 @@ local Board = nil
 function Game:enter(previous)
 	Board = require('func.Board')
 	self.scale = 0.25
+	self.next = 0
 	self.ui = SUIT.new()
-	--Board:init(self.scale, Positions[1].FEN) --Default Position
-	Board:init(self.scale, Positions[2].FEN) --Castling Test
+	Board:init(self.scale, Positions[1].FEN) --Default Position
+	--Board:init(self.scale, Positions[2].FEN) --Castling Test
 	--Board:init(self.scale, Positions[3].FEN) --Checkmate Test
 end
 
@@ -33,6 +34,16 @@ function Game:draw()
 end
 
 function Game:update(dt)
+	if love.keyboard.isDown('right') then
+		if self.next > 0.04 then
+			self.next = 0
+			Board:step()
+		else
+			self.next = self.next + dt
+		end
+	else
+		self.next = 0
+	end
 	Board:update(dt)
 
 	if Board.checkmate ~= -1 then
@@ -62,8 +73,13 @@ end
 function Game:mousereleased(x, y, btn)
 	if Board.promoting then return end
 	if btn == 1 then
-		Board:move_piece(x, y)
+		Board:mousereleased(x, y)
 	end
+end
+
+function Game:keypressed(key)
+	if key == 't' then Board:test(4) end
+	if key == 'right' then Board:step() end
 end
 
 return Game

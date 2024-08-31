@@ -9,7 +9,6 @@ function Tests:enter(previous)
 	self.ply = 2
 	Board:init(self.scale, Positions[1].FEN)
 	Test:init(Positions[1].FEN)
-	--Test:run(self.ply, Board)
 end
 
 function Tests:draw()
