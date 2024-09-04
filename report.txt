@@ -2,20 +2,18 @@
  +-----+-------------------------------+-------------+--------------------------+----------------------------------+ 
  | #   | Function                      | Calls       | Time                     | Code                             | 
  +-----+-------------------------------+-------------+--------------------------+----------------------------------+ 
- | 1   | generation_test               | 206604      | 120.668                  | func/MoveGenerator.lua:401       | 
- | 2   | generate_legal_moves          | 9323        | 115.693                  | func/MoveGenerator.lua:62        | 
- | 3   | filter_illegal_moves          | 9323        | 115.679                  | func/MoveGenerator.lua:142       | 
- | 4   | generate_pseudo_legal_moves   | 216387      | 111.67                   | func/MoveGenerator.lua:34        | 
- | 5   | knight_move                   | 432605      | 37.565999999999          | func/MoveGenerator.lua:243       | 
- | 6   | pawn_move                     | 1729818     | 36.187                   | func/MoveGenerator.lua:171       | 
- | 7   | table_contains                | 26788864    | 30.793                   | main.lua:80                      | 
- | 8   | check_board_wrap_knight       | 5636850     | 28.532999999999          | func/MoveGenerator.lua:361       | 
- | 9   | check_board_wrap              | 6316980     | 28.205000000001          | func/MoveGenerator.lua:352       | 
- | 10  | king_move                     | 216387      | 23.691000000001          | func/MoveGenerator.lua:263       | 
- | 11  | check_castling                | 216387      | 7.685                    | func/MoveGenerator.lua:285       | 
- | 12  | is_in_check                   | 216387      | 7.3049999999999          | func/MoveGenerator.lua:162       | 
- | 13  | table_shallow_copy            | 3525723     | 6.4119999999996          | main.lua:72                      | 
- | 14  | make_move                     | 413667      | 5.0759999999996          | func/MoveGenerator.lua:69        | 
- | 15  | unmake_move                   | 413667      | 4.5880000000001          | func/MoveGenerator.lua:122       | 
- | 16  | sliding_move                  | 1081735     | 3.1739999999999          | func/MoveGenerator.lua:311       | 
+ | 1   | generation_test               | 216369      | 3.36                     | func/MoveGenerator.lua:482       | 
+ | 2   | generate_legal_moves          | 9766        | 2.016                    | func/MoveGenerator.lua:84        | 
+ | 3   | generate_pseudo_legal_moves   | 9766        | 1.157                    | func/MoveGenerator.lua:57        | 
+ | 4   | is_in_check                   | 226592      | 0.93499999999999         | func/MoveGenerator.lua:97        | 
+ | 5   | make_move                     | 433191      | 0.54899999999999         | func/MoveGenerator.lua:164       | 
+ | 6   | pawn_move                     | 78098       | 0.47700000000001         | func/MoveGenerator.lua:264       | 
+ | 7   | unmake_move                   | 433191      | 0.33499999999999         | func/MoveGenerator.lua:232       | 
+ | 8   | king_move                     | 9766        | 0.075                    | func/MoveGenerator.lua:366       | 
+ | 9   | knight_move                   | 19528       | 0.069000000000003        | func/MoveGenerator.lua:354       | 
+ | 10  | check_castling                | 9766        | 0.055                    | func/MoveGenerator.lua:386       | 
+ | 11  | sliding_move                  | 48830       | 0.032000000000003        | func/MoveGenerator.lua:411       | 
+ | 12  | check_en_passant              | 25160       | 0.022000000000003        | func/MoveGenerator.lua:331       | 
+ | 13  | table_shallow_copy            | 9766        | 0.016                    | main.lua:72                      | 
+ | 14  | check_promotion               | 8090        | 0.01                     | func/MoveGenerator.lua:260       | 
  +-----+-------------------------------+-------------+--------------------------+----------------------------------+ 

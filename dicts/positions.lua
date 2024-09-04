@@ -38,4 +38,9 @@ Positions[3] =
 	FEN = "4k3/pppppppp/8/8/8/8/8/QQQQKQQQ"
 }
 
+Positions[4] =
+{
+	FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R"
+}
+
 return Positions

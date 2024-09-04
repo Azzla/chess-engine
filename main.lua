@@ -1,4 +1,4 @@
-jit.off()
+--jit.off()
 io.stdout:setvbuf('no')
 local Roomy		= require('lib/roomy')
 StateManager	= Roomy.new()
@@ -69,14 +69,7 @@ end
 end
 
 --utils
-function table_shallow_copy(t)
-	local t2 = {}
-		for k,v in pairs(t) do
-			t2[k] = v
-		end
-	return t2
-end
-
+function table_shallow_copy(t) return {unpack(t)} end
 function table_contains(table, element)
 	for _, value in pairs(table) do
 		if value == element then return true end

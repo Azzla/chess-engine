@@ -9,6 +9,7 @@ function Game:enter(previous)
 	Board:init(self.scale, Positions[1].FEN) --Default Position
 	--Board:init(self.scale, Positions[2].FEN) --Castling Test
 	--Board:init(self.scale, Positions[3].FEN) --Checkmate Test
+	--Board:init(self.scale, 'rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R', 1) --Position 5
 end
 
 function Game:draw()
@@ -78,8 +79,16 @@ function Game:mousereleased(x, y, btn)
 end
 
 function Game:keypressed(key)
-	if key == 't' then Board:test(4) end
+	if key == '1' then Board:test(1) end
+	if key == '2' then Board:test(2) end
+	if key == '3' then Board:test(3) end
+	if key == '4' then Board:test(4) end
+	if key == '5' then Board:test(5) end
+	if key == '6' then Board:test(6) end
 	if key == 'right' then Board:step() end
+	if key == 'space' then
+		for i=1,26000 do Board:step() end
+	end
 end
 
 return Game

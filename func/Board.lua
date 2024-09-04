@@ -41,7 +41,7 @@ local blank_board = {
 	0,0,0,0,0,0,0,0		
 }
 
-function Board:init(scale, _fen)
+function Board:init(scale, _fen, color)
 	self._fen_init = _fen
 	self.step_i = 1
 	self.scale = scale or 1
@@ -67,11 +67,11 @@ function Board:init(scale, _fen)
 
 	-- 0 = none; 1 = pawn; 2 = knight; 3 = bishop; 4 = rook; 5 = king; 6 = queen;
 	self.board_pieces = table_shallow_copy(blank_board)
-
+	self.king = {}
 	-- 0 = not first move; 1 = first move
-	self.board_first_move	= table_add(table_shallow_copy(blank_board), 1)
+	self.board_first_move	= table_shallow_copy(blank_board)
 
-	self.color_to_move		= 1 --1 = white; 0 = black;
+	self.color_to_move		= color or 1 --1 = white; 0 = black;
 	self.selected_piece		= nil --the square that the piece is on
 	self.promoting			= false
 	self.w_time				= 180 --3 minutes in seconds
@@ -92,7 +92,7 @@ function Board:init(scale, _fen)
 	-- )
 end
 
-function Board:reset(_fen)
+function Board:reset(_fen, to_move)
 	self.board_loyalty		= table_add(table_shallow_copy(blank_board), -1)
 	self.board_highlight	= table_shallow_copy(blank_board)
 	self.board_attacks		= {
@@ -100,8 +100,8 @@ function Board:reset(_fen)
 		[1] = table_shallow_copy(blank_board)
 	}
 	self.board_pieces		= table_shallow_copy(blank_board)
-	self.board_first_move	= table_add(table_shallow_copy(blank_board), 1)
-	self.color_to_move		= 1
+	self.board_first_move	= table_shallow_copy(blank_board)
+	self.color_to_move		= to_move
 	self.selected_piece		= nil
 	self.promoting			= false
 	self.w_time				= 180
@@ -109,24 +109,22 @@ function Board:reset(_fen)
 	self.run_test			= nil
 
 	FENParser.parse(_fen, self)
-	MoveGenerator:init(self)
+	MoveGenerator:init(self, MoveGenerator.move_log)
 	local moves = MoveGenerator:generate_pseudo_legal_moves(self.color_to_move)
 	MoveGenerator:generate_legal_moves(moves)
 	self.board_attacks[1] = table_shallow_copy(MoveGenerator.attacks[self.color_to_move])
 end
 
 function Board:update(dt)
-	--self:update_timers(dt)
-	--Evaluation:update(dt)
-	-- if self.color_to_move == 0 and Options.ai_black then --make the bot control black
-	-- 	Bot:make_random(self)
-	-- end
-	--self:test_promotion()
+	self:update_timers(dt)
+	if self.color_to_move == 0 and Options.ai_black then --make the bot control black
+		Bot:make_random(self)
+	end
+	self:promotion()
 end
 
 function Board:update_timers(dt)
-	local white_moved = self.last_move[1] ~= -1
-	if not white_moved then return end
+	if not MoveGenerator.made_first_move then return end
 	if self.checkmate ~= -1 then return end
 	if self.color_to_move == 1 then self.w_time = self.w_time - dt end
 	if self.color_to_move == 0 then self.b_time = self.b_time - dt end
@@ -176,7 +174,6 @@ end
 
 function Board:draw()
 	self:draw_timers()
-	--Evaluation:draw()
 	for i,piece in ipairs(self.board_pieces) do
 		if piece ~= 0 then
 			self:draw_piece(piece, i, self.board_loyalty[i], false)
@@ -190,16 +187,17 @@ end
 
 
 
-function Board:test_promotion()
+function Board:promotion()
 	if not self.promoting then return end
+	print('made it')
 	local btn_w = self.tile_w*self.scale
-	local x,y = self.promoting.x, self.promoting.y
+	local x,y = to_xy_coordinates(self.promoting.index)
 	local index = self.promoting.index
 	local loyalty = self.promoting.color
 	--Auto-Queen Options--
 	if Options.auto_queen or loyalty == 0 then
 		print('auto promote')
-		self:promote(index, loyalty, 6)
+		MoveGenerator:promote(index, loyalty, 6)
 		return
 	end
 
@@ -212,10 +210,10 @@ function Board:test_promotion()
 	local bishop_btn = self.ui:Button("", {id=3}, self.ui.layout:row())
 	local knight_btn = self.ui:Button("", {id=2}, self.ui.layout:row())
 
-	if queen_btn.hit then self:promote(index, loyalty, queen_btn.id) end
-	if rook_btn.hit then self:promote(index, loyalty, rook_btn.id) end
-	if bishop_btn.hit then self:promote(index, loyalty, bishop_btn.id) end
-	if knight_btn.hit then self:promote(index, loyalty, knight_btn.id) end
+	if queen_btn.hit then MoveGenerator:promote(index, loyalty, queen_btn.id) end
+	if rook_btn.hit then MoveGenerator:promote(index, loyalty, rook_btn.id) end
+	if bishop_btn.hit then MoveGenerator:promote(index, loyalty, bishop_btn.id) end
+	if knight_btn.hit then MoveGenerator:promote(index, loyalty, knight_btn.id) end
 end
 
 function Board:draw_promotion_buttons(color)
@@ -327,7 +325,7 @@ function Board:select_piece(x,y)
 			for _,move in ipairs(MoveGenerator.legal_moves) do
 				local square_from = move[1]
 				local square_to = move[2]
-				local is_capture = move[3].is_capture
+				local is_capture = self.board_pieces[square_to] ~= 0
 				if square_from == square then
 					--found a legal move
 					if is_capture then self.board_highlight[square_to] = 2
@@ -352,6 +350,7 @@ function Board:mousereleased(x,y)
 	local square_to = xy_to_index(tile.x,tile.y)
 	local move = MoveGenerator:contains_move(square_from, square_to)
 	if move then
+		local is_capture = self.board_pieces[square_to] ~= 0
 		--make the move
 		MoveGenerator:make_move(move)
 		local moves = MoveGenerator:generate_pseudo_legal_moves()
@@ -371,7 +370,7 @@ function Board:mousereleased(x,y)
 			self.checkmate = MoveGenerator.color_to_move
 			return
 		else
-			if move[3].is_capture then SFX.capture:play() else
+			if is_capture then SFX.capture:play() else
 				if move[3].is_castle then SFX.castle:play() else SFX.move:play() end
 			end
 			if MoveGenerator:is_in_check(self.color_to_move) then SFX.check:play() end
@@ -395,108 +394,6 @@ function Board:get_tile(x,y)
 	end
 end
 
-local function combine_boards(...)
-	local combined_board = table_shallow_copy(blank_board)
-	for _,board in ipairs({...}) do
-		for i,v in ipairs(board) do
-			if (v == 1 or v == 2) then combined_board[i] = v end
-		end
-	end
-	return combined_board
-end
-local function table_bitwise_OR(t1,t2)
-	for i,v in ipairs(t2) do
-		if v == 1 or v == 2 then t1[i] = v end
-	end
-	return t1
-end
-
-function Board:test_move(piece, new_index, board)
-	board[piece.index] = 0
-	board[new_index] = piece
-	local move_valid = true
-
-	for i,p in ipairs(board) do
-		if p ~= 0 and p.color ~= piece.color then
-			local move_data = MoveData[i]
-			--test enemy piece possible captures of king
-			if p.piece == "pawn" then
-				if self:pawn_check(p, move_data, board) then move_valid = false end
-			elseif p.piece == "knight" then
-				if self:knight_check(p, move_data, board) then move_valid = false end
-			elseif p.info.sliding then
-				if self:sliding_check(p, move_data, board) then move_valid = false end
-			else
-				--we have to test if king "checks" are possible in order to
-				--disallow both kings from moving into each other's capture radius.
-				if self:king_check(p, move_data, board) then move_valid = false end
-			end
-		end
-	end
-
-	return move_valid
-end
-
-function Board:generate_possible_moves(color)
-	--track separate boards for every piece
-	local pawn_board	= table_shallow_copy(blank_board)
-	local knight_board	= table_shallow_copy(blank_board)
-	local sliding_board	= table_shallow_copy(blank_board)
-	local king_board	= table_shallow_copy(blank_board)
-	local piece_board	= table_shallow_copy(self.board_pieces)
-	
-	for i,unit in ipairs(piece_board) do
-		if unit ~= 0 and unit.color == color then
-			local move_data = MoveData[i]
-
-			if unit.piece == 'pawn' then
-				local board = table_shallow_copy(blank_board)
-				self:pawn_moves(unit, move_data, board)
-				self:filter_illegal_moves(unit, board)
-				pawn_board = table_bitwise_OR(pawn_board, board)
-			elseif unit.piece == 'knight' then
-				local board = table_shallow_copy(blank_board)
-				self:knight_moves(unit, move_data, board)
-				self:filter_illegal_moves(unit, board)
-				knight_board = table_bitwise_OR(knight_board, board)
-			elseif unit.info.sliding then
-				local board = table_shallow_copy(blank_board)
-				self:sliding_moves(unit, move_data, board)
-				self:filter_illegal_moves(unit, board)
-				sliding_board = table_bitwise_OR(sliding_board, board)
-			elseif unit.piece == 'king' then
-				self:king_moves(unit, move_data, king_board)
-				self:filter_illegal_moves(unit, king_board)
-			end
-		end
-	end
-
-	--combine them all to check if there are any available moves
-	return combine_boards(pawn_board, knight_board, sliding_board, king_board)
-end
-
-function Board:filter_illegal_moves(piece, board)
-	local moves_board = board or self.board_highlight
-	for i,square in ipairs(moves_board) do
-		--for each potential move, we try it out on a test board
-		--and see if any of the opponents responses is a capture of the king.
-		--If it is, we know our potential move was illegal, so we remove it
-		--from the list of pseudo-legal moves.
-		if square == 1 or square == 2 then
-			local test_board = table_shallow_copy(self.board_pieces)
-			local valid = self:test_move(piece, i, test_board)
-			if not valid then moves_board[i] = 0 end
-		end
-	end
-end
-
-function Board:check_valid_move(new_index)
-	if self.board_highlight[new_index] == 1 or self.board_highlight[new_index] == 2 then
-		return true
-	end
-	return false
-end
-
 function Board:test(ply)
 	if Options.enable_profiler then Profiler.start() end
 	print(MoveGenerator:generation_test(ply))
@@ -504,25 +401,24 @@ function Board:test(ply)
 		Profiler.stop()
 		generate_report(Profiler.report(Options.profiler_lines))
 	end
-	Board:reset(self._fen_init)
 end
 
-function Board:step()
-	if #MoveGenerator.move_log > 0 then
-		local move = MoveGenerator.move_log[self.step_i]
-		if not move then return end
-		if move[2] == true then
-			MoveGenerator:unmake_move(move[1])
-			self.step_i = self.step_i + 1
-		else
-			MoveGenerator:make_move(move)
-			self.step_i = self.step_i + 1
+-- function Board:step()
+-- 	if #MoveGenerator.move_log > 0 then
+-- 		local move = MoveGenerator.move_log[self.step_i]
+-- 		if not move then return end
+-- 		if move[2] == true then
+-- 			MoveGenerator:unmake_move(move[1])
+-- 			self.step_i = self.step_i + 1
+-- 		else
+-- 			MoveGenerator:make_move(move)
+-- 			self.step_i = self.step_i + 1
 
-			self.board_highlight = table_shallow_copy(blank_board)
-			self.board_highlight[move[1]] = 3
-			self.board_highlight[move[2]] = 3
-		end
-	end
-end
+-- 			self.board_highlight = table_shallow_copy(blank_board)
+-- 			self.board_highlight[move[1]] = 3
+-- 			self.board_highlight[move[2]] = 3
+-- 		end
+-- 	end
+-- end
 
 return Board

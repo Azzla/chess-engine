@@ -10,7 +10,7 @@ Options.flags.fullscreen	= false
 Options.flags.resizable		= false
 Options.flags.msaa			= 16
 Options.flags.vsync			= false
-Options.enable_profiler 	= true
+Options.enable_profiler 	= false
 Options.profiler_lines		= 16
 Options.profiler_path		= [[K:\Projects\Chess\report.txt]]
 Options.enable_save			= false
@@ -22,7 +22,7 @@ Options.enable_shaders		= false
 Options.display_attacks		= false
 
 --Game-Options--
-Options.ai_black			= true
+Options.ai_black			= false
 Options.click_move			= false
 Options.auto_queen			= false
 Options.allow_undo			= false

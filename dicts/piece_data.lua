@@ -16,12 +16,12 @@ PieceData[1] =
 	sliding	= false,
 	[1] = {
 		move_1 = {-8,-16},
-		move = {-8},
+		move = -8,
 		move_cap = {-7,-9}
 	}, --TODO: Can optimize slightly by multiplying moves by -1
 	[0] = {
 		move_1 = {8,16},
-		move = {8},
+		move = 8,
 		move_cap = {7,9}
 	}
 }

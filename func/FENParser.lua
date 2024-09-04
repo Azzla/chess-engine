@@ -32,6 +32,38 @@ function FENParser.parse(fen, board)
 				else
 					board.board_loyalty[current_square] = key[c][1]
 					board.board_pieces[current_square] = key[c][2]
+					
+					--record the king position
+					if key[c][2] == 5 then
+						board.king[key[c][1]] = current_square
+						if current_square == 5 and key[c][1] == 0 then
+							board.board_first_move[current_square] = 1
+						end
+						if current_square == 61 and key[c][1] == 1 then
+							board.board_first_move[current_square] = 1
+						end
+					end
+
+					--record pawn first move hash
+					if key[c][2] == 1 then
+						if key[c][1] == 0 and current_square >=9 and current_square <= 16 then
+							board.board_first_move[current_square] = 1
+						end
+						if key[c][1] == 1 and current_square >=49 and current_square <= 56 then
+							board.board_first_move[current_square] = 1
+						end
+					end
+
+					--record rook first move hash (probably TODO)
+					if key[c][2] == 4 then
+						if key[c][1] == 0 and (current_square == 1 or current_square == 8) then
+							board.board_first_move[current_square] = 1
+						end
+						if key[c][1] == 1 and (current_square == 57 or current_square == 64) then
+							board.board_first_move[current_square] = 1
+						end
+					end
+					
 					current_square = current_square + 1
 				end
 			end			
