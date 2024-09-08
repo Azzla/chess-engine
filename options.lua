@@ -22,7 +22,7 @@ Options.enable_shaders		= false
 Options.display_attacks		= false
 
 --Game-Options--
-Options.ai_black			= false
+Options.ai_black			= true
 Options.click_move			= false
 Options.auto_queen			= false
 Options.allow_undo			= false
