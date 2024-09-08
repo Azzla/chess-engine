@@ -19,9 +19,18 @@ local threadCode = [[
 			Bot.best_move = {1,1,{}}
 			MoveGenerator:thread_supply(unpack(love.thread.getChannel('board'):pop()))
 
-			local eval = Bot:search(5, -math.huge, math.huge)
-			love.thread.getChannel('eval'):push(eval)
-			love.thread.getChannel('move'):push(Bot.best_move)
+			local eval,num_moves = Bot:search(5, -math.huge, math.huge)
+			if not num_moves then
+				if eval == 0 then
+					love.thread.getChannel('stale'):push(true)
+				else
+					love.thread.getChannel('mate'):push(true)
+				end
+			else
+				print(Bot.best_move[1],Bot.best_move[2])
+				love.thread.getChannel('eval'):push(eval)
+				love.thread.getChannel('move'):push(Bot.best_move)
+			end
 		end
 
 		if reset then MoveGenerator:thread_init() end
@@ -97,8 +106,8 @@ function Board:init(scale, _fen, color)
 	self.color_to_move		= color or 1 --1 = white; 0 = black;
 	self.selected_piece		= nil --the square that the piece is on
 	self.promoting			= false
-	self.w_time				= 180 --3 minutes in seconds
-	self.b_time				= 180 --3 minutes in seconds
+	self.w_time				= 600 --10 minutes in seconds
+	self.b_time				= 600 --10 minutes in seconds
 	self.run_test			= nil
 	self.searching			= false
 
@@ -136,6 +145,7 @@ function Board:reset(_fen, to_move)
 	self.run_test			= nil
 	self.searching			= false
 	self.checkmate			= nil
+	self.stalemate			= nil
 
 	FENParser.parse(_fen, self)
 	MoveGenerator:init(self)
@@ -150,9 +160,20 @@ end
 function Board:update(dt)
 	self:update_timers(dt)
 	if self.searching then
+		self.search_time = self.search_time + dt
 		local eval_recieved = love.thread.getChannel('eval'):pop()
 		local move_recieved = love.thread.getChannel('move'):pop()
-		if eval_recieved and move_recieved then
+		local mate_recieved = love.thread.getChannel('mate'):pop()
+		local stale_recieved = love.thread.getChannel('stale'):pop()
+		if mate_recieved then
+			self.checkmate = self.color_to_move
+			self.searching = false
+			SFX.checkmate:play()
+		elseif stale_recieved then
+			self.stalemate = true
+			self.searching = false
+			SFX.checkmate:play()
+		elseif eval_recieved and move_recieved then
 			self:ai_callback(move_recieved)
 		end
 	end
@@ -350,6 +371,7 @@ end
 function Board:select_piece(x,y)
 	if self.promoting then return end
 	if self.checkmate then return end
+	if Options.ai_black and self.color_to_move == 0 then return end
 
 	local tile = self:get_tile(x,y)
 	if tile then
@@ -357,7 +379,6 @@ function Board:select_piece(x,y)
 		local piece = self.board_pieces[square]
 		if piece ~= 0 then --there's a piece on this square
 			self.selected_piece = square
-			if Options.ai_black and self.color_to_move == 0 then return end
 			--check for legal moves
 			for _,move in ipairs(MoveGenerator.legal_moves) do
 				local square_from = move[1]
@@ -415,6 +436,7 @@ function Board:mousereleased(x,y)
 		--Automatic AI Moves
 		if Options.ai_black then
 			self.searching = true
+			self.search_time = 0
 			love.thread.getChannel('board'):push({
 				table_shallow_copy(MoveGenerator.board),
 				table_shallow_copy(MoveGenerator.loyalty),
@@ -433,6 +455,7 @@ end
 function Board:ai_callback(best_move)
 	-- print(self.board_pieces[best_move[1]])
 	-- print(best_move[1], best_move[2])
+	print('Search completed in: ', self.search_time)
 	self.searching = false
 	local is_capture = self.board_pieces[best_move[2]] ~= 0
 	MoveGenerator:make_move(best_move)

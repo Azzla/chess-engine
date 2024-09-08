@@ -6,7 +6,8 @@ function Game:enter(previous)
 	self.scale = 0.25
 	self.next = 0
 	self.ui = SUIT.new()
-	Board:init(self.scale, Positions[1].FEN) --Default Position
+	--Board:init(self.scale, Positions[1].FEN) --Default Position
+	Board:init(self.scale, Positions[4].FEN) --Easy Win Position
 	--Board:init(self.scale, Positions[2].FEN) --Castling Test
 	--Board:init(self.scale, Positions[3].FEN) --Checkmate Test
 	--Board:init(self.scale, 'rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R', 1) --Position 5
@@ -27,6 +28,12 @@ function Game:draw()
 		love.graphics.setColor(1,1,1,1)
 		love.graphics.setFont(Font_64)
 		love.graphics.printf("White Wins", 0, 5, Options.w, 'center')
+	end
+
+	if Board.stalemate then
+		love.graphics.setColor(1,1,1,1)
+		love.graphics.setFont(Font_64)
+		love.graphics.printf("Draw by Stalemate", 0, 5, Options.w, 'center')
 	end
 
 	if Board.check ~= -1 then

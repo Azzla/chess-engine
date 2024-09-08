@@ -23,7 +23,6 @@ end
 --correct best move for the root-node of the search tree.
 function Bot:search(depth, alpha, beta)
 	if depth == 0 then return self:search_captures(alpha, beta) end
-	print(depth)
 	local moves = self.MoveGenerator:generate_pseudo_legal_moves()
 	local legal_moves = self.MoveGenerator:generate_legal_moves(moves)
 
@@ -51,7 +50,7 @@ function Bot:search(depth, alpha, beta)
 		end
 	end
 
-	return alpha
+	return alpha,#legal_moves
 end
 
 function Bot:search_captures(alpha, beta)
