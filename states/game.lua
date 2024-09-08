@@ -85,10 +85,6 @@ function Game:keypressed(key)
 	if key == '4' then Board:test(4) end
 	if key == '5' then Board:test(5) end
 	if key == '6' then Board:test(6) end
-	if key == 'right' then Board:step() end
-	if key == 'space' then
-		for i=1,26000 do Board:step() end
-	end
 end
 
 return Game
