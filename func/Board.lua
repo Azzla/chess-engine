@@ -1,9 +1,32 @@
 local Board = {}
 local MoveGenerator = require('func.MoveGenerator')
 local PieceData = require('dicts.piece_data')
-local Bot = require('class.Bot')
+--local Bot = require('class.Bot')
 local FENParser = require('func.FENParser')
 local Evaluation = require('func.eval')
+local AI_THREAD
+local threadCode = [[
+	local Bot = require('class.Bot')
+	local MoveGenerator = require('func.MoveGenerator')
+	MoveGenerator:thread_init()
+	Bot:init(MoveGenerator)
+
+	while true do
+		local searching = love.thread.getChannel('search'):pop()
+		local reset = love.thread.getChannel('reset'):pop()
+		if searching then
+			searching = false
+			Bot.best_move = {1,1,{}}
+			MoveGenerator:thread_supply(unpack(love.thread.getChannel('board'):pop()))
+
+			local eval = Bot:search(5, -math.huge, math.huge)
+			love.thread.getChannel('eval'):push(eval)
+			love.thread.getChannel('move'):push(Bot.best_move)
+		end
+
+		if reset then MoveGenerator:thread_init() end
+	end
+]]
 
 local function to_xy_coordinates(index)
 	local grid_size = 8
@@ -77,12 +100,16 @@ function Board:init(scale, _fen, color)
 	self.w_time				= 180 --3 minutes in seconds
 	self.b_time				= 180 --3 minutes in seconds
 	self.run_test			= nil
+	self.searching			= false
 
 	FENParser.parse(_fen, self)
 	MoveGenerator:init(self)
-	local moves = MoveGenerator:generate_pseudo_legal_moves(self.color_to_move)
-	MoveGenerator:generate_legal_moves(moves)
+	local moves = MoveGenerator:generate_pseudo_legal_moves()
+	MoveGenerator.legal_moves = MoveGenerator:generate_legal_moves(moves)
 	self.board_attacks[1] = table_shallow_copy(MoveGenerator.attacks[self.color_to_move])
+
+	AI_THREAD = love.thread.newThread(threadCode)
+	AI_THREAD:start()
 
 	-- Evaluation:init(
 	-- 	Options.w-self.screen_offset_x+30,
@@ -101,31 +128,39 @@ function Board:reset(_fen, to_move)
 	}
 	self.board_pieces		= table_shallow_copy(blank_board)
 	self.board_first_move	= table_shallow_copy(blank_board)
-	self.color_to_move		= to_move
+	self.color_to_move		= to_move or 1
 	self.selected_piece		= nil
 	self.promoting			= false
 	self.w_time				= 180
 	self.b_time				= 180
 	self.run_test			= nil
+	self.searching			= false
+	self.checkmate			= nil
 
 	FENParser.parse(_fen, self)
-	MoveGenerator:init(self, MoveGenerator.move_log)
-	local moves = MoveGenerator:generate_pseudo_legal_moves(self.color_to_move)
-	MoveGenerator:generate_legal_moves(moves)
+	MoveGenerator:init(self)
+	local moves = MoveGenerator:generate_pseudo_legal_moves()
+	MoveGenerator.legal_moves = MoveGenerator:generate_legal_moves(moves)
 	self.board_attacks[1] = table_shallow_copy(MoveGenerator.attacks[self.color_to_move])
+
+	--reset threaded AI
+	love.thread.getChannel('reset'):push(true)
 end
 
 function Board:update(dt)
 	self:update_timers(dt)
-	if self.color_to_move == 0 and Options.ai_black then --make the bot control black
-		Bot:make_random(self)
+	if self.searching then
+		local eval_recieved = love.thread.getChannel('eval'):pop()
+		local move_recieved = love.thread.getChannel('move'):pop()
+		if eval_recieved and move_recieved then
+			self:ai_callback(move_recieved)
+		end
 	end
-	self:promotion()
 end
 
 function Board:update_timers(dt)
 	if not MoveGenerator.made_first_move then return end
-	if self.checkmate ~= -1 then return end
+	if self.checkmate then return end
 	if self.color_to_move == 1 then self.w_time = self.w_time - dt end
 	if self.color_to_move == 0 then self.b_time = self.b_time - dt end
 	if self.w_time <= 0 then
@@ -314,6 +349,7 @@ end
 
 function Board:select_piece(x,y)
 	if self.promoting then return end
+	if self.checkmate then return end
 
 	local tile = self:get_tile(x,y)
 	if tile then
@@ -321,6 +357,7 @@ function Board:select_piece(x,y)
 		local piece = self.board_pieces[square]
 		if piece ~= 0 then --there's a piece on this square
 			self.selected_piece = square
+			if Options.ai_black and self.color_to_move == 0 then return end
 			--check for legal moves
 			for _,move in ipairs(MoveGenerator.legal_moves) do
 				local square_from = move[1]
@@ -353,8 +390,7 @@ function Board:mousereleased(x,y)
 		local is_capture = self.board_pieces[square_to] ~= 0
 		--make the move
 		MoveGenerator:make_move(move)
-		local moves = MoveGenerator:generate_pseudo_legal_moves()
-		MoveGenerator:generate_legal_moves(moves)
+		MoveGenerator.made_first_move = true
 		
 		--highlights
 		self.board_attacks = MoveGenerator.attacks
@@ -375,9 +411,49 @@ function Board:mousereleased(x,y)
 			end
 			if MoveGenerator:is_in_check(self.color_to_move) then SFX.check:play() end
 		end
+
+		--Automatic AI Moves
+		if Options.ai_black then
+			self.searching = true
+			love.thread.getChannel('board'):push({
+				table_shallow_copy(MoveGenerator.board),
+				table_shallow_copy(MoveGenerator.loyalty),
+				table_shallow_copy(MoveGenerator.first_moves),
+				MoveGenerator.king[0],
+				MoveGenerator.king[1]
+			})
+			love.thread.getChannel('search'):push(true)
+		end
 	else
 		self.board_highlight = table_shallow_copy(blank_board)
 		self.selected_piece = nil
+	end
+end
+
+function Board:ai_callback(best_move)
+	-- print(self.board_pieces[best_move[1]])
+	-- print(best_move[1], best_move[2])
+	self.searching = false
+	local is_capture = self.board_pieces[best_move[2]] ~= 0
+	MoveGenerator:make_move(best_move)
+
+	--highlights
+	self.board_attacks = MoveGenerator.attacks
+	self.board_highlight = table_shallow_copy(blank_board)
+	self.board_highlight[best_move[1]] = 3
+	self.board_highlight[best_move[2]] = 3
+	self.color_to_move = MoveGenerator.color_to_move
+
+	if is_capture then SFX.capture:play() else
+		if best_move[3].is_castle then SFX.castle:play() else SFX.move:play() end
+	end
+	if MoveGenerator:is_in_check(self.color_to_move) then SFX.check:play() end
+
+	local moves = MoveGenerator:generate_pseudo_legal_moves()
+	MoveGenerator.legal_moves = MoveGenerator:generate_legal_moves(moves)
+	if MoveGenerator.checkmate then
+		SFX.checkmate:play()
+		self.checkmate = MoveGenerator.checkmate
 	end
 end
 

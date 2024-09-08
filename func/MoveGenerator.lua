@@ -1,8 +1,8 @@
-local PieceData = require('dicts.piece_data')
 local MoveData,KnightData,DirectionOffsets = require('dicts.move_data')()
-local Move = require('class.Move')
+--local Move = require('class.Move')
 local MoveGenerator = {}
 
+local function table_shallow_copy(t) return {unpack(t)} end
 local all_files = {
 	['a'] = {1,9,17,25,33,41,49,57},
 	['b'] = {2,10,18,26,34,42,50,58},
@@ -23,8 +23,6 @@ local ranks = {
 	[7] = {9,16},
 	[8] = {1,8}
 }
-
-
 local blank_board = {
 	0,0,0,0,0,0,0,0,
 	0,0,0,0,0,0,0,0,
@@ -42,16 +40,37 @@ function MoveGenerator:init(board, move_log)
 	self.loyalty			= self._board.board_loyalty
 	self.first_moves		= self._board.board_first_move
 	self.king				= self._board.king
-	self.pseudo_legal_moves	= {}
 	self.legal_moves		= {}
 	self.attacks			= {
 		[0] = table_shallow_copy(blank_board),
 		[1] = table_shallow_copy(blank_board)
 	}
-	self.move_log			= move_log or {}
 	self.last_move_pawn		= nil
 	self.color_to_move		= board.color_to_move
 	self.made_first_move	= false
+	self.checkmate			= nil
+end
+
+function MoveGenerator:thread_init()
+	self.board				= {}
+	self.loyalty			= {}
+	self.first_moves		= {}
+	self.king				= {[0] = 5, [1] = 61}
+	self.attacks			= {
+		[0] = table_shallow_copy(blank_board),
+		[1] = table_shallow_copy(blank_board)
+	}
+	self.legal_moves		= {}
+	self.last_move_pawn		= nil
+	self.color_to_move		= 0
+	self.checkmate			= nil
+end
+
+function MoveGenerator:thread_supply(pieces, loyalty, first_moves, b_king, w_king)
+	self.board				= pieces
+	self.loyalty			= loyalty
+	self.first_moves		= first_moves
+	self.king				= {[0] = b_king, [1] = w_king}
 end
 
 function MoveGenerator:generate_pseudo_legal_moves()
@@ -61,6 +80,7 @@ function MoveGenerator:generate_pseudo_legal_moves()
 
 	for square,piece in ipairs(self.board) do
 		if self.loyalty[square] ~= color then goto continue end
+		if piece == 0 then goto continue end
 
 		if piece == 1 then
 			self:pawn_move(square, color, self.first_moves[square], moves)
@@ -89,9 +109,17 @@ function MoveGenerator:generate_legal_moves(moves)
 		if not self:is_in_check(king_color) then legal_moves[#legal_moves+1] = move end
 		self:unmake_move(move)
 	end
-	if #legal_moves == 0 then self.checkmate = true end
-	self.legal_moves = legal_moves
+	if #legal_moves == 0 then self.checkmate = king_color end
 	return legal_moves
+end
+
+function MoveGenerator:generate_captures(moves)
+	local captures = {}
+	for _,move in ipairs(moves) do
+		local square_to = move[2]
+		if self.board[square_to] ~= 0 then captures[#captures+1] = move end
+	end
+	return captures
 end
 
 function MoveGenerator:is_in_check(king_col, optional_square)
@@ -162,7 +190,6 @@ function MoveGenerator:is_in_check(king_col, optional_square)
 end
 
 function MoveGenerator:make_move(move)
-	self.made_first_move = true
 	local square_from,square_to = move[1],move[2]
 	local flags = move[3]
 	
@@ -261,6 +288,18 @@ local function check_promotion(square_to,color)
 	return square_to >= 57-56*color and square_to <= 64-56*color
 end
 
+local PawnData = {
+	[1] = {
+		move_1 = {-8,-16},
+		move = -8,
+		move_cap = {-7,-9}
+	},
+	[0] = {
+		move_1 = {8,16},
+		move = 8,
+		move_cap = {7,9}
+	}
+}
 function MoveGenerator:pawn_move(square, color, is_first_move, moves)
 	local move_data = MoveData[square]
 	local dirs_cap = {}
@@ -300,7 +339,7 @@ function MoveGenerator:pawn_move(square, color, is_first_move, moves)
 
 	--regular moves--
 	if is_first_move == 1 then
-		for _,dir in ipairs(PieceData[1][color].move_1) do
+		for _,dir in ipairs(PawnData[color].move_1) do
 			local square_to = square + dir
 			local square_piece = self.board[square_to]
 
@@ -312,7 +351,7 @@ function MoveGenerator:pawn_move(square, color, is_first_move, moves)
 			end
 		end
 	else
-		local square_to = square + PieceData[1][color].move
+		local square_to = square + PawnData[color].move
 		local square_piece = self.board[square_to]
 		if square_piece == 0 then
 			local is_promotion = check_promotion(square_to,color)
