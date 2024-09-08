@@ -7,6 +7,13 @@ is then used to limit how many times we can multiply the direction offset for an
 local ab_file = {1,9,17,25,33,41,49,57,2,10,18,26,34,42,50,58}
 local gh_file = {7,15,23,31,39,47,55,63,8,16,24,32,40,48,56,64}
 
+local function table_contains(table, element)
+	for _, value in pairs(table) do
+		if value == element then return true end
+	end
+	return false
+end
+
 local function wraps_board(s, target_s)
 	if table_contains(ab_file, s) then
 		if table_contains(gh_file, target_s) then return true end
