@@ -1,4 +1,3 @@
---jit.off()
 io.stdout:setvbuf('no')
 local Roomy		= require('lib/roomy')
 StateManager	= Roomy.new()
@@ -8,6 +7,7 @@ Class			= require('lib/class')
 Timer			= require('lib/timer')
 Tween			= require('lib/tween')
 Profiler		= require('lib/profile')
+				  require('lib/slam')
 Options			= require('options')
 States			= nil
 ChessFont		= nil
