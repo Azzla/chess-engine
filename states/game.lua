@@ -6,10 +6,11 @@ function Game:enter(previous)
 	self.scale = 0.25
 	self.next = 0
 	self.ui = SUIT.new()
-	--Board:init(self.scale, Positions[1].FEN) --Default Position
-	Board:init(self.scale, Positions[4].FEN) --Easy Win Position
+	Board:init(self.scale, Positions[1].FEN) --Default Position
+	--Board:init(self.scale, Positions[4].FEN) --Easy Win Position
 	--Board:init(self.scale, Positions[2].FEN) --Castling Test
 	--Board:init(self.scale, Positions[3].FEN) --Checkmate Test
+	--Board:init(self.scale, '1rk5/8/8/8/8/3K4/8/8') --Endgame Test
 	--Board:init(self.scale, 'rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R', 1) --Position 5
 end
 

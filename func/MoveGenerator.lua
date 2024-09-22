@@ -64,6 +64,7 @@ function MoveGenerator:thread_init()
 	self.last_move_pawn		= nil
 	self.color_to_move		= 0
 	self.checkmate			= nil
+	self.move_log			= {}
 end
 
 function MoveGenerator:thread_supply(pieces, loyalty, first_moves, b_king, w_king)

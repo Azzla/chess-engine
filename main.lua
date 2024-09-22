@@ -25,20 +25,20 @@ Positions		= require('dicts/positions')
 local function require_assets()
 	return {
 		w = { --white pieces
-			pawn = love.graphics.newImage('assets/pieces/No Shadow/1x/w_pawn_1x_ns.png'),
-			knight = love.graphics.newImage('assets/pieces/No Shadow/1x/w_knight_1x_ns.png'),
-			bishop = love.graphics.newImage('assets/pieces/No Shadow/1x/w_bishop_1x_ns.png'),
-			rook = love.graphics.newImage('assets/pieces/No Shadow/1x/w_rook_1x_ns.png'),
-			king = love.graphics.newImage('assets/pieces/No Shadow/1x/w_king_1x_ns.png'),
-			queen = love.graphics.newImage('assets/pieces/No Shadow/1x/w_queen_1x_ns.png')
+			pawn = love.graphics.newImage('assets/pieces/wp.png'),
+			knight = love.graphics.newImage('assets/pieces/wn.png'),
+			bishop = love.graphics.newImage('assets/pieces/wb.png'),
+			rook = love.graphics.newImage('assets/pieces/wr.png'),
+			king = love.graphics.newImage('assets/pieces/wk.png'),
+			queen = love.graphics.newImage('assets/pieces/wq.png')
 		},
 		b = { --black pieces
-			pawn = love.graphics.newImage('assets/pieces/No Shadow/1x/b_pawn_1x_ns.png'),
-			knight = love.graphics.newImage('assets/pieces/No Shadow/1x/b_knight_1x_ns.png'),
-			bishop = love.graphics.newImage('assets/pieces/No Shadow/1x/b_bishop_1x_ns.png'),
-			rook = love.graphics.newImage('assets/pieces/No Shadow/1x/b_rook_1x_ns.png'),
-			king = love.graphics.newImage('assets/pieces/No Shadow/1x/b_king_1x_ns.png'),
-			queen = love.graphics.newImage('assets/pieces/No Shadow/1x/b_queen_1x_ns.png')
+			pawn = love.graphics.newImage('assets/pieces/bp.png'),
+			knight = love.graphics.newImage('assets/pieces/bn.png'),
+			bishop = love.graphics.newImage('assets/pieces/bb.png'),
+			rook = love.graphics.newImage('assets/pieces/br.png'),
+			king = love.graphics.newImage('assets/pieces/bk.png'),
+			queen = love.graphics.newImage('assets/pieces/bq.png')
 		}
 	}
 end

@@ -5,37 +5,7 @@ local PieceData = require('dicts.piece_data')
 local FENParser = require('func.FENParser')
 local Evaluation = require('func.eval')
 local AI_THREAD
-local threadCode = [[
-	local Bot = require('class.Bot')
-	local MoveGenerator = require('func.MoveGenerator')
-	MoveGenerator:thread_init()
-	Bot:init(MoveGenerator)
-
-	while true do
-		local searching = love.thread.getChannel('search'):pop()
-		local reset = love.thread.getChannel('reset'):pop()
-		if searching then
-			searching = false
-			Bot.best_move = {1,1,{}}
-			MoveGenerator:thread_supply(unpack(love.thread.getChannel('board'):pop()))
-
-			local eval,num_moves = Bot:search(5, -math.huge, math.huge)
-			if not num_moves then
-				if eval == 0 then
-					love.thread.getChannel('stale'):push(true)
-				else
-					love.thread.getChannel('mate'):push(true)
-				end
-			else
-				print(Bot.best_move[1],Bot.best_move[2])
-				love.thread.getChannel('eval'):push(eval)
-				love.thread.getChannel('move'):push(Bot.best_move)
-			end
-		end
-
-		if reset then MoveGenerator:thread_init() end
-	end
-]]
+local threadCode = require('func.AI_thread')
 
 local function to_xy_coordinates(index)
 	local grid_size = 8
@@ -79,6 +49,9 @@ function Board:init(scale, _fen, color)
 	self.scale = scale or 1
 	self.squares = 8
 	self.tile_w = 450
+	self.anim_timer = Timer.new()
+	self.animate = {x=0,y=0}
+	self.tween = Tween.new(1,{},{})
 	self.screen_offset_x = (Options.w - (self.tile_w*self.squares*self.scale))/2
 	self.screen_offset_y = (Options.h - (self.tile_w*self.squares*self.scale))/2
 	self.ui = SUIT.new()
@@ -92,6 +65,10 @@ function Board:init(scale, _fen, color)
 
 	-- 0 = normal; 1 = moveable highlight; 2 = capturable highlight; 3 = last-move highlight;
 	self.board_highlight = table_shallow_copy(blank_board)
+	self.captured = {
+		[0] = {},
+		[1] = {}
+	}
 	self.board_attacks		= {
 		[0] = table_shallow_copy(blank_board),
 		[1] = table_shallow_copy(blank_board)
@@ -116,21 +93,20 @@ function Board:init(scale, _fen, color)
 	local moves = MoveGenerator:generate_pseudo_legal_moves()
 	MoveGenerator.legal_moves = MoveGenerator:generate_legal_moves(moves)
 	self.board_attacks[1] = table_shallow_copy(MoveGenerator.attacks[self.color_to_move])
-
-	AI_THREAD = love.thread.newThread(threadCode)
-	AI_THREAD:start()
-
-	-- Evaluation:init(
-	-- 	Options.w-self.screen_offset_x+30,
-	-- 	self.screen_offset_y,
-	-- 	self.tile_w*self.squares*self.scale,
-	-- 	self.board_pieces
-	-- )
+	
+	if Options.ai_black then
+		AI_THREAD = love.thread.newThread(threadCode)
+		AI_THREAD:start()
+	end
 end
 
 function Board:reset(_fen, to_move)
 	self.board_loyalty		= table_add(table_shallow_copy(blank_board), -1)
 	self.board_highlight	= table_shallow_copy(blank_board)
+	self.captured = {
+		[0] = {},
+		[1] = {}
+	}
 	self.board_attacks		= {
 		[0] = table_shallow_copy(blank_board),
 		[1] = table_shallow_copy(blank_board)
@@ -140,8 +116,8 @@ function Board:reset(_fen, to_move)
 	self.color_to_move		= to_move or 1
 	self.selected_piece		= nil
 	self.promoting			= false
-	self.w_time				= 180
-	self.b_time				= 180
+	self.w_time				= 600
+	self.b_time				= 600
 	self.run_test			= nil
 	self.searching			= false
 	self.checkmate			= nil
@@ -149,17 +125,22 @@ function Board:reset(_fen, to_move)
 
 	FENParser.parse(_fen, self)
 	MoveGenerator:init(self)
+
 	local moves = MoveGenerator:generate_pseudo_legal_moves()
 	MoveGenerator.legal_moves = MoveGenerator:generate_legal_moves(moves)
 	self.board_attacks[1] = table_shallow_copy(MoveGenerator.attacks[self.color_to_move])
 
 	--reset threaded AI
-	love.thread.getChannel('reset'):push(true)
+	if Options.ai_black then
+		love.thread.getChannel('reset'):push(true)
+	end
 end
 
 function Board:update(dt)
+	self.anim_timer:update(dt)
+	self.tween:update(dt)
 	self:update_timers(dt)
-	if self.searching then
+	if Options.ai_black and self.searching then
 		self.search_time = self.search_time + dt
 		local eval_recieved = love.thread.getChannel('eval'):pop()
 		local move_recieved = love.thread.getChannel('move'):pop()
@@ -174,7 +155,11 @@ function Board:update(dt)
 			self.searching = false
 			SFX.checkmate:play()
 		elseif eval_recieved and move_recieved then
-			self:ai_callback(move_recieved)
+			self:animate_move(move_recieved)
+			self.anim_timer:after(.3, function()
+				self.animated_piece = nil
+				self:ai_callback(move_recieved)
+			end)
 		end
 	end
 end
@@ -196,22 +181,42 @@ function Board:update_timers(dt)
 	end
 end
 
+function Board:animate_move(move)
+	local x,y = to_xy_coordinates(move[1]-1)
+	local x2,y2 = to_xy_coordinates(move[2]-1)
+	self.animate = {x=x,y=y}
+	self.animated_piece = move[1]
+	self.tween = Tween.new(0.3,self.animate,{x=x2,y=y2},"inOutCubic")
+end
+
 function Board:draw_piece(piece, square, color)
 	local piece_data = PieceData[piece]
+	local scale = self.scale * 3
 	local x,y = to_xy_coordinates(square-1)
 	local px = (x-1) * self.tile_w * self.scale + (self.screen_offset_x)
 	local py = (y-1) * self.tile_w * self.scale + (self.screen_offset_y)
+
 	local asset_color
 	if color == 1 then asset_color = 'w' else asset_color = 'b' end
 
-	if self.selected_piece == square then
+	if self.animated_piece and self.animated_piece == square then
+		px = (self.animate.x-1) * self.tile_w * self.scale + (self.screen_offset_x)
+		py = (self.animate.y-1) * self.tile_w * self.scale + (self.screen_offset_y)
+		love.graphics.setColor(1,1,1,1)
+		love.graphics.draw(
+			Assets[asset_color][piece_data.name],
+			px,py,
+			0,
+			scale,scale
+		)
+	elseif self.selected_piece == square then
 		x,y = love.mouse.getPosition()
 		love.graphics.setColor(.5,1,.5,1)
 		love.graphics.draw(
 			Assets[asset_color][piece_data.name],
 			x,y,
 			0,
-			self.scale,self.scale,
+			scale,scale,
 			piece_data.dimensions[1]/2,
 			piece_data.dimensions[2]/2
 		)
@@ -221,15 +226,14 @@ function Board:draw_piece(piece, square, color)
 			Assets[asset_color][piece_data.name],
 			px,py,
 			0,
-			self.scale,self.scale,
-			-(piece_data.offsets[1])-piece_data.dimensions[1]/2,
-			-(piece_data.offsets[2])-piece_data.dimensions[2]/2
+			scale,scale
 		)
 	end
 end
 
 function Board:draw()
 	self:draw_timers()
+	self:draw_captured()
 	for i,piece in ipairs(self.board_pieces) do
 		if piece ~= 0 then
 			self:draw_piece(piece, i, self.board_loyalty[i], false)
@@ -272,6 +276,35 @@ function Board:promotion()
 	if knight_btn.hit then MoveGenerator:promote(index, loyalty, knight_btn.id) end
 end
 
+function Board:draw_captured()
+	local white = self.captured[1]
+	local black = self.captured[0]
+	local wy,by = 0,0
+	local wx,bx = 0,0
+
+	for i,piece in ipairs(white) do
+		if i > 8 then wy,wx = 30,8 end
+		local piece_data = PieceData[piece]
+		love.graphics.draw(
+			Assets['w'][piece_data.name],
+			10+((i-wx)*25),180+wy,
+			0,
+			.25,.25
+		)
+	end
+
+	for i,piece in ipairs(black) do
+		if i > 8 then by,bx = -30,8 end
+		local piece_data = PieceData[piece]
+		love.graphics.draw(
+			Assets['b'][piece_data.name],
+			10+((i-bx)*25),Options.h-210+by,
+			0,
+			.25,.25
+		)
+	end
+end
+
 function Board:draw_promotion_buttons(color)
 	local x,y = self.ui.layout._x+10, self.ui.layout._y+10
 	love.graphics.draw(
@@ -302,6 +335,7 @@ function Board:draw_background()
 
 		local tx = (x-1) * self.tile_w * self.scale + (self.screen_offset_x)
 		local ty = (y-1) * self.tile_w * self.scale + (self.screen_offset_y)
+		local high_w = self.tile_w*self.scale/3
 		
 		if square == 1
 		then love.graphics.setColor(self.light_color)
@@ -316,7 +350,12 @@ function Board:draw_background()
 		if self.board_highlight[i] == 1 then
 			--moveable square color
 			love.graphics.setColor(0,0,0,.3)
-			love.graphics.rectangle('fill',tx+33,ty+33,45,45)
+			love.graphics.rectangle('fill',
+				tx+self.tile_w*self.scale/2-high_w/2,
+				ty+self.tile_w*self.scale/2-high_w/2,
+				high_w,
+				high_w
+			)
 		elseif self.board_highlight[i] == 2 then
 			--capturable highlight color
 			love.graphics.setColor(self.move_high)
@@ -345,7 +384,8 @@ function Board:draw_background()
 				)
 			end
 		end
-
+		
+		--square # debugging
 		love.graphics.setColor(0,0,0,1)
 		love.graphics.setFont(Font_8)
 		love.graphics.print(tostring(i), tx+2, ty+2)
@@ -408,7 +448,8 @@ function Board:mousereleased(x,y)
 	local square_to = xy_to_index(tile.x,tile.y)
 	local move = MoveGenerator:contains_move(square_from, square_to)
 	if move then
-		local is_capture = self.board_pieces[square_to] ~= 0
+		local captured_piece = self.board_pieces[square_to]
+		local is_capture = captured_piece ~= 0
 		--make the move
 		MoveGenerator:make_move(move)
 		MoveGenerator.made_first_move = true
@@ -427,7 +468,14 @@ function Board:mousereleased(x,y)
 			self.checkmate = MoveGenerator.color_to_move
 			return
 		else
-			if is_capture then SFX.capture:play() else
+			if is_capture or move[3].is_en_passant then
+				if is_capture then
+					table.insert(self.captured[self.color_to_move],captured_piece)
+				elseif move[3].is_en_passant then
+					table.insert(self.captured[self.color_to_move],1)
+				end
+				SFX.capture:play()
+			else
 				if move[3].is_castle then SFX.castle:play() else SFX.move:play() end
 			end
 			if MoveGenerator:is_in_check(self.color_to_move) then SFX.check:play() end
@@ -445,6 +493,9 @@ function Board:mousereleased(x,y)
 				MoveGenerator.king[1]
 			})
 			love.thread.getChannel('search'):push(true)
+		else
+			local moves = MoveGenerator:generate_pseudo_legal_moves()
+			MoveGenerator.legal_moves = MoveGenerator:generate_legal_moves(moves)
 		end
 	else
 		self.board_highlight = table_shallow_copy(blank_board)
@@ -457,7 +508,8 @@ function Board:ai_callback(best_move)
 	-- print(best_move[1], best_move[2])
 	print('Search completed in: ', self.search_time)
 	self.searching = false
-	local is_capture = self.board_pieces[best_move[2]] ~= 0
+	local captured_piece = self.board_pieces[best_move[2]]
+	local is_capture = captured_piece ~= 0
 	MoveGenerator:make_move(best_move)
 
 	--highlights
@@ -467,7 +519,14 @@ function Board:ai_callback(best_move)
 	self.board_highlight[best_move[2]] = 3
 	self.color_to_move = MoveGenerator.color_to_move
 
-	if is_capture then SFX.capture:play() else
+	if is_capture or best_move[3].is_en_passant then
+		if is_capture then
+			table.insert(self.captured[self.color_to_move],captured_piece)
+		elseif best_move[3].is_en_passant then
+			table.insert(self.captured[self.color_to_move],1)
+		end
+		SFX.capture:play()
+	else
 		if best_move[3].is_castle then SFX.castle:play() else SFX.move:play() end
 	end
 	if MoveGenerator:is_in_check(self.color_to_move) then SFX.check:play() end
@@ -501,23 +560,5 @@ function Board:test(ply)
 		generate_report(Profiler.report(Options.profiler_lines))
 	end
 end
-
--- function Board:step()
--- 	if #MoveGenerator.move_log > 0 then
--- 		local move = MoveGenerator.move_log[self.step_i]
--- 		if not move then return end
--- 		if move[2] == true then
--- 			MoveGenerator:unmake_move(move[1])
--- 			self.step_i = self.step_i + 1
--- 		else
--- 			MoveGenerator:make_move(move)
--- 			self.step_i = self.step_i + 1
-
--- 			self.board_highlight = table_shallow_copy(blank_board)
--- 			self.board_highlight[move[1]] = 3
--- 			self.board_highlight[move[2]] = 3
--- 		end
--- 	end
--- end
 
 return Board
