@@ -18,18 +18,18 @@ local sort,floor,max,min,abs = table.sort,math.floor,math.max,math.min,math.abs
 
 function Bot:init(MoveGenerator)
 	self.MoveGenerator = MoveGenerator
+	self.best_move = {1,1,{}}
 	self.moves = {}
 	self.principal_variation = {}
-	self.root_depth = 4
+	self.root_depth = 1
 end
 
---TODO: Hard coding search depth 4 so that I can store the
---correct best move for the root-node of the search tree.
 local function negate(val1, val2)
 	return -1*val1,val2
 end
 
-function Bot:search(depth, alpha, beta)
+--TODO: Transposition Table
+function Bot:search(depth, alpha, beta, principal)
 	if depth == 0 then return self:search_captures(alpha, beta) end
 	local moves = self.MoveGenerator:generate_pseudo_legal_moves()
 	local legal_moves = self.MoveGenerator:generate_legal_moves(moves)
@@ -44,18 +44,17 @@ function Bot:search(depth, alpha, beta)
 		end
 	end
 
-	self:order_moves(legal_moves)
+	self:order_moves(legal_moves, principal)
 
 	for i,move in ipairs(legal_moves) do
 		self.MoveGenerator:make_move(move)
-		local eval,num_moves = negate(self:search(depth-1, -beta, -alpha))
+		local eval = -self:search(depth-1, -beta, -alpha, principal)
 		self.MoveGenerator:unmake_move(move)
 		
 		if eval >= beta then return beta,0 end --byebye branch
 		if eval > alpha then
 			if not self:is_repetition(move) then
 				alpha = eval
-
 				if depth == self.root_depth then
 					self.best_move = move
 				end
@@ -79,10 +78,10 @@ function Bot:search_captures(alpha, beta)
 	
 	for i,move in ipairs(captures) do
 		self.MoveGenerator:make_move(move)
-		eval,num_moves = -self:search_captures(-beta, -alpha)
+		eval = -self:search_captures(-beta, -alpha)
 		self.MoveGenerator:unmake_move(move)
 
-		if eval >= beta then return beta,num_moves end
+		if eval >= beta then return beta end
 		if eval > alpha then
 			alpha = eval
 		end
@@ -91,7 +90,11 @@ function Bot:search_captures(alpha, beta)
 	return alpha,#legal_moves
 end
 
-function Bot:order_moves(moves)
+function Bot:cancel_search()
+	self.cancel = true
+end
+
+function Bot:order_moves(moves, principal)
 	local board = self.MoveGenerator.board
 	local move_scores = {}
 
@@ -102,6 +105,11 @@ function Bot:order_moves(moves)
 
 		--the highest priority goes to the principal variation, or the best moves
 		--from previous searches
+		if principal then
+			if move[1]==principal[1] and move[2]==principal[2] then
+				move_score_guess = 100000
+			end
+		end
 
 		--prioritize capturing higher-value pieces with lower-value pieces
 		if captured_piece ~= 0 then
@@ -186,33 +194,36 @@ function Bot:count_square_bonus(color, material)
 end
 
 function Bot:force_king_corner(friendly_king, enemy_king)
-	local endgame_weight = 10
+	local endgame_weight = 20
 	local eval = 0
 
 	local enemy_king_rank = floor((enemy_king-1)/8)+1
 	local enemy_king_file = ((enemy_king-1) % 8)+1
 	local enemy_king_dist_center_file = max(3-enemy_king_file,enemy_king_file-4)
 	local enemy_king_dist_center_rank = max(3-enemy_king_rank,enemy_king_rank-4)
-	local enemy_king_dist_center = enemy_king_dist_center_file + enemy_king_dist_center_rank
+	local enemy_king_dist_center = enemy_king_dist_center_file+enemy_king_dist_center_rank
 	eval = eval + enemy_king_dist_center
 
 	local friendly_king_rank = floor((friendly_king-1)/8)+1
 	local friendly_king_file = ((friendly_king-1) % 8)+1
 	local dist_king_files = abs(friendly_king_file-enemy_king_file)
 	local dist_king_ranks = abs(friendly_king_rank-enemy_king_rank)
-	local dist_between_kings = dist_king_files+dist_king_ranks
+	local dist_between_kings = dist_king_files+dist_king_ranks -- Manhattan
+	--local dist_between_kings = max(dist_king_files,dist_king_ranks) --Chebyshev
 	eval = eval + 14 - dist_between_kings
 
-	return eval * 10 * endgame_weight
+	return eval * endgame_weight
 end
 
 function Bot:is_repetition(move)
 	if #self.moves < 3 then return false end
-	local prev_move   = self.moves[#self.moves]
-	--local prev_move_2 = self.moves[#self.moves-1]
-	--local prev_move_3 = self.moves[#self.moves-2]
+	local prev_move = self.moves[#self.moves]
+	local prev_move_2 = self.moves[#self.moves-1]
 
-	return move[2] == prev_move[1]
+	local same_first = move[2] == prev_move[1]
+	local same_second = move[1] == prev_move_2[1]
+
+	return same_first and same_second
 end
 
 return Bot

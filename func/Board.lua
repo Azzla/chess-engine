@@ -87,6 +87,9 @@ function Board:init(scale, _fen, color)
 	self.b_time				= 600 --10 minutes in seconds
 	self.run_test			= nil
 	self.searching			= false
+	self.search_limit		= .05 -- 50 ms search limit + exceeded
+	self.search_time		= 0
+	self.message_sent		= false
 
 	FENParser.parse(_fen, self)
 	MoveGenerator:init(self)
@@ -140,25 +143,32 @@ function Board:update(dt)
 	self.anim_timer:update(dt)
 	self.tween:update(dt)
 	self:update_timers(dt)
+
 	if Options.ai_black and self.searching then
 		self.search_time = self.search_time + dt
-		local eval_recieved = love.thread.getChannel('eval'):pop()
-		local move_recieved = love.thread.getChannel('move'):pop()
-		local mate_recieved = love.thread.getChannel('mate'):pop()
-		local stale_recieved = love.thread.getChannel('stale'):pop()
-		if mate_recieved then
+		if self.search_time >= self.search_limit and not self.message_sent then
+			love.thread.getChannel('timeout'):push(true)
+			self.message_sent = true
+		end
+
+		local move_received = love.thread.getChannel('move'):pop()
+		local mate_received = love.thread.getChannel('mate'):pop()
+		local stale_received = love.thread.getChannel('stale'):pop()
+		if mate_received then
 			self.checkmate = self.color_to_move
 			self.searching = false
 			SFX.checkmate:play()
-		elseif stale_recieved then
+		elseif stale_received then
 			self.stalemate = true
 			self.searching = false
 			SFX.checkmate:play()
-		elseif eval_recieved and move_recieved then
-			self:animate_move(move_recieved)
+		elseif move_received then
+			print('received')
+			print(move_received[2][1],move_received[2][2])
+			self:animate_move(move_received[2])
 			self.anim_timer:after(.3, function()
 				self.animated_piece = nil
-				self:ai_callback(move_recieved)
+				self:ai_callback(move_received[2])
 			end)
 		end
 	end
@@ -386,9 +396,9 @@ function Board:draw_background()
 		end
 		
 		--square # debugging
-		love.graphics.setColor(0,0,0,1)
-		love.graphics.setFont(Font_8)
-		love.graphics.print(tostring(i), tx+2, ty+2)
+		--love.graphics.setColor(0,0,0,1)
+		--love.graphics.setFont(Font_8)
+		--love.graphics.print(tostring(i), tx+2, ty+2)
 	end
 end
 
@@ -484,7 +494,6 @@ function Board:mousereleased(x,y)
 		--Automatic AI Moves
 		if Options.ai_black then
 			self.searching = true
-			self.search_time = 0
 			love.thread.getChannel('board'):push({
 				table_shallow_copy(MoveGenerator.board),
 				table_shallow_copy(MoveGenerator.loyalty),
@@ -503,11 +512,34 @@ function Board:mousereleased(x,y)
 	end
 end
 
+local function test_king_corner(friendly_king, enemy_king)
+	local endgame_weight = 20
+	local eval = 0
+
+	local enemy_king_rank = math.floor((enemy_king-1)/8)+1
+	local enemy_king_file = ((enemy_king-1) % 8)+1
+	local enemy_king_dist_center_file = math.max(3-enemy_king_file,enemy_king_file-4)
+	local enemy_king_dist_center_rank = math.max(3-enemy_king_rank,enemy_king_rank-4)
+	local enemy_king_dist_center = enemy_king_dist_center_file+enemy_king_dist_center_rank
+	eval = eval + enemy_king_dist_center
+
+	local friendly_king_rank = math.floor((friendly_king-1)/8)+1
+	local friendly_king_file = ((friendly_king-1) % 8)+1
+
+	local dist_king_files = math.abs(friendly_king_file-enemy_king_file)
+	local dist_king_ranks = math.abs(friendly_king_rank-enemy_king_rank)
+	local dist_between_kings = dist_king_files+dist_king_ranks -- Manhattan
+	--local dist_between_kings = max(dist_king_files,dist_king_ranks) --Chebyshev
+	eval = eval + 14 - dist_between_kings
+
+	print('eval: ', eval * endgame_weight)
+end
+
 function Board:ai_callback(best_move)
-	-- print(self.board_pieces[best_move[1]])
-	-- print(best_move[1], best_move[2])
 	print('Search completed in: ', self.search_time)
+	self.search_time = 0
 	self.searching = false
+	self.message_sent = false
 	local captured_piece = self.board_pieces[best_move[2]]
 	local is_capture = captured_piece ~= 0
 	MoveGenerator:make_move(best_move)
@@ -518,6 +550,9 @@ function Board:ai_callback(best_move)
 	self.board_highlight[best_move[1]] = 3
 	self.board_highlight[best_move[2]] = 3
 	self.color_to_move = MoveGenerator.color_to_move
+
+	--TESTING--
+	--test_king_corner(self.king[1], self.king[0])
 
 	if is_capture or best_move[3].is_en_passant then
 		if is_capture then
