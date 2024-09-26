@@ -10,8 +10,7 @@ function Game:enter(previous)
 	--Board:init(self.scale, Positions[4].FEN) --Easy Win Position
 	--Board:init(self.scale, Positions[2].FEN) --Castling Test
 	--Board:init(self.scale, Positions[3].FEN) --Checkmate Test
-	--Board:init(self.scale, '1rk5/8/8/8/8/3K4/8/8') --Endgame Test
-	--Board:init(self.scale, 'rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R', 1) --Position 5
+	--Board:init(self.scale, '1qk5/8/8/8/8/3K4/8/8') --Endgame Test
 end
 
 function Game:draw()
