@@ -3,7 +3,7 @@ local Board = nil
 
 function Game:enter(previous)
 	Board = require('func.Board')
-	self.scale = 0.25
+	self.scale = Options.h/4320
 	self.next = 0
 	self.ui = SUIT.new()
 	Board:init(self.scale, Positions[1].FEN) --Default Position
@@ -55,9 +55,10 @@ function Game:update(dt)
 	Board:update(dt)
 
 	if Board.checkmate ~= -1 then
-		local btn_w = 300
-		self.ui.layout:reset(Options.w/2-btn_w/2,Options.h-80)
-		if self.ui:Button("reset", self.ui.layout:row(btn_w, 80)).hit then
+		local btn_w = 150
+		local btn_h = 50
+		self.ui.layout:reset(Options.w-btn_w,Options.h-btn_h)
+		if self.ui:Button("reset", {font=Font_32}, self.ui.layout:row(btn_w, btn_h)).hit then
 			Board:reset(Positions[1].FEN)
 		end
 	else
@@ -92,6 +93,16 @@ function Game:keypressed(key)
 	if key == '4' then Board:test(4) end
 	if key == '5' then Board:test(5) end
 	if key == '6' then Board:test(6) end
+end
+
+function Game:resize(w,h)
+	Options.h = h; Options.w = h*1.4;
+	love.window.setMode(Options.w,Options.h,Options.flags)
+	self.scale = h/4320
+
+	Board.scale = h/4320
+	Board.screen_offset_x = (Options.w - (Board.tile_w*Board.squares*Board.scale))/2
+	Board.screen_offset_y = (Options.h - (Board.tile_w*Board.squares*Board.scale))/2
 end
 
 return Game

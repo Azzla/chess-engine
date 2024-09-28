@@ -413,9 +413,13 @@ function Board:draw_timers()
 	   sec_b < 10 then sec_b = '0'..tostring(sec_b) end
 
 	love.graphics.setColor(self.light_color)
-	love.graphics.setFont(Font_64)
-	love.graphics.print(tostring(min_b)..':'..tostring(sec_b), 50, 100)
-	love.graphics.print(tostring(min_w)..':'..tostring(sec_w), 50, Options.h-180)
+	if Options.h >= 1080 then
+		love.graphics.setFont(Font_64)
+	else
+		love.graphics.setFont(Font_32)
+	end
+	love.graphics.print(tostring(min_b)..':'..tostring(sec_b), 200*self.scale, 400*self.scale)
+	love.graphics.print(tostring(min_w)..':'..tostring(sec_w), 200*self.scale, Options.h-600*self.scale)
 end
 
 function Board:select_piece(x,y)
@@ -588,12 +592,14 @@ function Board:get_tile(x,y)
 end
 
 function Board:test(ply)
-	if Options.enable_profiler then Profiler.start() end
-	print(MoveGenerator:generation_test(ply))
-	if Options.enable_profiler then
-		Profiler.stop()
-		generate_report(Profiler.report(Options.profiler_lines))
-	end
+	--if Options.enable_profiler then Profiler.start() end
+	
+	return MoveGenerator:generation_test(ply)
+	
+	-- if Options.enable_profiler then
+	-- 	Profiler.stop()
+	-- 	generate_report(Profiler.report(Options.profiler_lines))
+	-- end
 end
 
 return Board

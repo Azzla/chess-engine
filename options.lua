@@ -1,13 +1,13 @@
 local Options = {}
 
 Options.no_antialiasing 	= true
-Options.w 					= 1520
-Options.h 					= 1080
+Options.h 					= 720
+Options.w 					= Options.h*1.4
 Options.window_width		= 1920
 Options.full_width			= 2560
 Options.flags				= {}
 Options.flags.fullscreen	= false
-Options.flags.resizable		= false
+Options.flags.resizable		= true
 Options.flags.msaa			= 16
 Options.flags.vsync			= false
 Options.enable_profiler 	= false

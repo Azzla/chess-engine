@@ -113,5 +113,5 @@ function love.load()
 end
 
 function love.resize(w,h)
-	Options.w = w; Options.h = h;
+	Options.h = h; Options.w = h*1.4; 
 end

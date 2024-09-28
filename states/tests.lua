@@ -65,6 +65,7 @@ function Tests:keypressed(key)
 	if key == '3' then self:test_suite(3) end
 	if key == '4' then self:test_suite(4) end
 	if key == '5' then self:test_suite(5) end
+	if key == '6' then self:test_suite(6) end
 end
 
 return Tests
