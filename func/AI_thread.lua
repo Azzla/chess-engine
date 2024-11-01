@@ -16,11 +16,10 @@ return [[
 			repeat
 				Bot.root_depth = depth
 				eval,num_moves = Bot:search(depth, -math.huge, math.huge, Bot.best_move)
-				print('finished searching')
 				depth = depth + 1
 			until love.thread.getChannel('timeout'):pop()
 
-			if not num_moves then
+			if num_moves == 0 then
 				if eval == 0 then
 					love.thread.getChannel('stale'):push(true)
 				else
