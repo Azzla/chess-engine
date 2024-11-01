@@ -87,7 +87,7 @@ function Board:init(scale, _fen, color)
 	self.b_time				= 600 --10 minutes in seconds
 	self.run_test			= nil
 	self.searching			= false
-	self.search_limit		= .05 -- 50 ms search limit + exceeded
+	self.search_limit		= .200 -- 200 ms search limit + exceeded
 	self.search_time		= 0
 	self.message_sent		= false
 
